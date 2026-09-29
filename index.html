@@ -152,11 +152,11 @@ async function entra(uid) {
       return { ...p.data(), segreto };
     }
     if (!codice) {
-      alert('Non ti abbiamo trovato: controlla nome e PIN. Se sei nuovo, apri il link del circolo che trovi nel gruppo WhatsApp.');
+      alert('Non ti abbiamo trovato: controlla nome, cognome e PIN. Se sei nuovo, apri il link del circolo che trovi nel gruppo WhatsApp.');
       continue;
     }
     if (!confirm(`Non ti abbiamo trovato. Se sei nuovo tocca OK per iscriverti come ${nome}. `
-      + 'Se sei già iscritto tocca Annulla e ricontrolla nome e PIN.')) continue;
+      + 'Se sei già iscritto tocca Annulla e ricontrolla nome, cognome e PIN.')) continue;
     try {
       await setDoc(doc(db, 'persone', segreto), { id: uid, nome, codice });
     } catch (e) {
