@@ -66,6 +66,7 @@
     Consiglio: aggiungi questa pagina alla schermata Home.</p>
   <section id="soci" hidden>
     <h2>Soci</h2>
+    <p id="errore-soci" class="grigio" hidden>Impossibile caricare l'elenco dei soci. Ricarica la pagina.</p>
     <ul id="elenco-soci"></ul>
   </section>
 </main>
@@ -100,7 +101,7 @@ const oggi = () => iso(new Date()); // ricalcolato: la pagina può restare apert
 let io = null;       // { id, nome, segreto } — segreto = chiave del profilo (nome + PIN)
 let admin = false;
 let turni = {};      // 'AAAA-MM-GG' → { id, nome }
-let soci = [];       // solo admin: [{ id, nome, segreto }]
+let soci = [];       // solo admin: [{ id, nome, chiavi }] — di solito una chiave; due se un reset si è interrotto
 let anno = new Date().getFullYear();
 let mese = new Date().getMonth();
 
@@ -171,8 +172,19 @@ async function entra(uid) {
 }
 
 async function caricaSoci() {
-  const snap = await getDocs(collection(db, 'persone'));
-  soci = snap.docs.map((d) => ({ ...d.data(), segreto: d.id })).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  try {
+    const perId = new Map(); // una riga per socio anche se ha più chiavi (reset interrotto a metà)
+    for (const d of (await getDocs(collection(db, 'persone'))).docs) {
+      const s = perId.get(d.data().id) ?? { ...d.data(), chiavi: [] };
+      s.chiavi.push(d.id);
+      perId.set(s.id, s);
+    }
+    soci = [...perId.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+    $('errore-soci').hidden = true;
+  } catch {
+    soci = [];
+    $('errore-soci').hidden = false;
+  }
   disegnaSoci();
 }
 
@@ -181,7 +193,7 @@ function disegnaSoci() {
   $('elenco-soci').replaceChildren(...soci.map((s) => {
     const n = quanti(s.id);
     const b = el('button', '', 'Reimposta PIN');
-    b.onclick = () => reimpostaPin(s);
+    b.onclick = () => reimpostaPin(s, b);
     const li = el('li');
     li.append(el('span', '', `${s.nome} (${n} ${n === 1 ? 'turno' : 'turni'})`), b);
     return li;
@@ -189,21 +201,30 @@ function disegnaSoci() {
   $('soci').hidden = false;
 }
 
-// Reset PIN: stesso id (i turni restano suoi), nuova chiave; la vecchia chiave smette di funzionare.
-async function reimpostaPin(s) {
+// Reset PIN: stesso id (i turni restano suoi), nuova chiave; tutte le vecchie chiavi smettono di funzionare.
+async function reimpostaPin(s, bottone) {
   const pin = prompt(`Nuovo PIN di 4 cifre per ${s.nome}:`)?.trim();
   if (pin === undefined) return;
   if (!pinValido(pin)) return alert('Il PIN deve essere di 4 cifre.');
   const nuova = await chiave(s.nome, pin);
-  if (nuova === s.segreto) return alert('È lo stesso PIN di prima.');
+  if (s.chiavi.includes(nuova)) return alert('È lo stesso PIN di prima.');
+  bottone.disabled = true;
+  bottone.textContent = 'In corso…';
   try {
     await setDoc(doc(db, 'persone', nuova), { id: s.id, nome: s.nome });
-    await deleteDoc(doc(db, 'persone', s.segreto));
+  } catch (e) {
+    alert(e.code === 'permission-denied'
+      ? 'Un omonimo ha già questo PIN: scegline un altro.'
+      : 'Operazione non riuscita. Controlla la connessione e riprova.');
+    return caricaSoci();
+  }
+  try {
+    for (const k of s.chiavi) await deleteDoc(doc(db, 'persone', k));
     alert(`Fatto: comunica a ${s.nome} il nuovo PIN.`);
   } catch {
-    alert('Operazione non riuscita. Forse un omonimo ha già questo PIN: scegline un altro.');
+    alert(`Il nuovo PIN di ${s.nome} funziona già, ma il vecchio non è stato disattivato. Ripeti "Reimposta PIN" più tardi.`);
   }
-  if (s.segreto === io.segreto) return location.reload(); // PIN dell'admin stesso
+  if (s.id === io.id) return location.reload(); // l'admin ha cambiato il proprio PIN
   await caricaSoci();
 }
 
