@@ -157,3 +157,17 @@ test('dopo il reset il vecchio dispositivo non legge più i turni', async () => 
   await assertFails(getDocs(collection(db('anna'), 'turni')));
   await assertSucceeds(getDocs(collection(db('bruno'), 'turni')));
 });
+
+test('orari: li legge chiunque, li scrive solo l\'admin, solo valori sensati', async () => {
+  const orari = (uid) => doc(db(uid), 'impostazioni', 'circolo');
+  const buoni = { chiusura: 1, apre: '18:00', chiude: '00:00' };
+  await assertFails(setDoc(orari('anna'), buoni));
+  await diventaAdmin('capo');
+  await assertSucceeds(setDoc(orari('capo'), buoni));
+  await assertSucceeds(setDoc(orari('capo'), { chiusura: null, apre: '', chiude: '' }));
+  await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'impostazioni', 'circolo')));
+  for (const male of [{ ...buoni, chiusura: 7 }, { ...buoni, apre: '25:00' }, { ...buoni, apre: '<b>' }, { ...buoni, extra: 1 }]) {
+    await assertFails(setDoc(orari('capo'), male));
+  }
+  await assertFails(setDoc(doc(db('capo'), 'impostazioni', 'altro'), buoni));
+});

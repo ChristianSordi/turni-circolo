@@ -12,10 +12,19 @@ export function griglia(anno, mese) {
   ];
 }
 
+const giorno = (s) => new Date(s.slice(0, 4), s.slice(5, 7) - 1, s.slice(8));
+
 export const giornoLeggibile = (s) =>
-  new Date(s.slice(0, 4), s.slice(5, 7) - 1, s.slice(8)).toLocaleDateString('it-IT', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
+  giorno(s).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+
+// Giorno di chiusura settimanale come getDay (0 = domenica … 6 = sabato); null = sempre aperto.
+export const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+export const chiuso = (s, chiusura) => chiusura != null && giorno(s).getDay() === chiusura;
+export const testoChiusura = (c) => (c == null ? '' : `chiuso ${c === 0 ? 'la' : 'il'} ${GIORNI[c]}`);
+
+// "dalle 18:00 alle 24:00": mezzanotte si legge 24:00. Vuoto se manca un orario.
+export const fascia = ({ apre, chiude } = {}) =>
+  apre && chiude ? `dalle ${apre} alle ${chiude === '00:00' ? '24:00' : chiude}` : '';
 
 // Classifica turni fatti per socio (per id, col nome più recente): contano solo i giorni prima di `oggi`.
 // anno 'AAAA' o null = da sempre.

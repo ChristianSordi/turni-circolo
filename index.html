@@ -67,6 +67,9 @@
   .testata-dentro { max-width: 560px; margin: 0 auto; padding: 20px 16px 18px; padding-right: 124px; }
   .testata h1 { margin: 0; font: 800 2.7rem/1 var(--titoli); letter-spacing: -.01em; }
   .testata p { margin: 2px 0 0; color: var(--grigio); }
+  .testata .orario { margin-top: 8px; color: var(--inchiostro); font-size: .95rem; line-height: 1.3; }
+  .orario span { display: block; }
+  .orario span::first-letter { text-transform: uppercase; }
   .pace { height: 14px; background: linear-gradient(#7b2d8e 0 14.3%, #1f4e9e 0 28.6%, #3aa5dd 0 42.9%,
           #2e9e48 0 57.1%, #f7d31a 0 71.4%, #f28c1e 0 85.7%, #e2231a 0); }
   .logo { position: absolute; bottom: -46px; right: max(16px, calc(50% - 264px)); width: 104px; height: 104px;
@@ -138,6 +141,11 @@
   .giorno.passato { opacity: .5; border-style: solid; }
   .giorno.oggi .num { background: var(--inchiostro); color: var(--su-inchiostro); }
   .giorno.mio.oggi .num { background: #fff; color: var(--rosso); }
+  /* Giorno di chiusura: la serranda abbassata */
+  .giorno.chiuso, .legenda .l-chiuso { border: 2px solid var(--linea); color: var(--grigio); cursor: default;
+    background: repeating-linear-gradient(var(--superficie) 0 5px, var(--linea) 5px 7px); }
+  .giorno.chiuso .nome { width: auto; margin-top: auto; padding: 0 3px; border-radius: 4px; background: var(--superficie);
+                         font-weight: 700; }
 
   .legenda { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; padding: 0; list-style: none; font-size: .9rem; }
   .legenda i { display: inline-block; width: 16px; height: 16px; margin-right: 6px; border-radius: 4px; vertical-align: -2px; }
@@ -173,6 +181,15 @@
   #elenco-soci .comandi { flex: none; display: flex; gap: 6px; }
   #elenco-soci .elimina { color: var(--rosso-testo); }
 
+  /* Orari (admin) */
+  #impostazioni { margin-top: 36px; }
+  #impostazioni h2 { margin: 0 0 4px; font: 800 1.4rem/1.2 var(--titoli); }
+  .campi { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0 16px; }
+  .campi label { font-weight: 700; }
+  .campi .intero { grid-column: 1 / -1; }
+  .campi input, .campi select { display: block; width: 100%; min-height: 52px; margin-top: 6px; padding: 10px 12px;
+    border: 2px solid var(--linea); border-radius: 12px; background: var(--superficie); color: inherit; font: inherit; }
+
   /* Finestra di conferma: foglio dal basso su telefono */
   dialog { width: min(100% - 24px, 440px); max-width: none; margin: auto auto 12px; padding: 22px 20px 20px;
            border: 0; border-radius: 22px; background: var(--superficie); color: var(--inchiostro); }
@@ -200,6 +217,7 @@
   <div class="testata-dentro">
     <h1>Turni</h1>
     <p>Circolo Arci San Liberato</p>
+    <p id="orario" class="orario" hidden></p>
   </div>
   <div class="pace"></div>
   <div class="aspetto" role="group" aria-label="Tema">
@@ -253,8 +271,25 @@
       <li><i class="l-mio"></i>Tuo turno</li>
       <li><i class="l-altro"></i>Già preso</li>
       <li><i class="l-libero"></i>Libero: tocca per segnarti</li>
+      <li id="legenda-chiuso" hidden><i class="l-chiuso"></i>Circolo chiuso</li>
     </ul>
     <p class="nota">Consiglio: aggiungi questa pagina alla schermata Home.</p>
+    <section id="impostazioni" hidden>
+      <h2>Orari del circolo</h2>
+      <p class="nota">Li vedono tutti in cima alla pagina. Nel giorno di chiusura nessuno può segnarsi.</p>
+      <form id="form-orari" class="campi">
+        <label>Apre<input id="apre" type="time"></label>
+        <label>Chiude<input id="chiude" type="time"></label>
+        <label class="intero">Giorno di chiusura
+          <select id="chiusura">
+            <option value="">Nessuno, sempre aperto</option>
+            <option value="1">Lunedì</option><option value="2">Martedì</option><option value="3">Mercoledì</option>
+            <option value="4">Giovedì</option><option value="5">Venerdì</option><option value="6">Sabato</option>
+            <option value="0">Domenica</option>
+          </select></label>
+        <button id="salva-orari" class="grande intero">Salva orari</button>
+      </form>
+    </section>
     <section id="soci" hidden>
       <h2>Soci</h2>
       <ul id="elenco-soci"></ul>
@@ -293,7 +328,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, setDoc, deleteDoc, collection, onSnapshot, writeBatch }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, griglia, giornoLeggibile, classifica } from './calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia } from './calendario.js';
 import { normalizzaNome, nomeValido, pinValido, chiave } from './profilo.js';
 
 // Config web dalla console Firebase (Impostazioni progetto → Le tue app). Non è segreta.
@@ -322,6 +357,7 @@ let soci = [];       // solo admin: [{ id, nome, segreto }]
 let anno = new Date().getFullYear();
 let mese = new Date().getMonth();
 let periodo = String(anno); // classifica: 'AAAA' o null = da sempre
+let orari = {};      // impostazioni/circolo: { chiusura, apre, chiude }
 
 function el(tag, classe = '', testo = '') {
   const e = document.createElement(tag);
@@ -548,14 +584,17 @@ function disegna() {
     if (!data) { g.append(el('div')); continue; }
     const t = turni[data];
     const b = el('button', 'giorno');
-    b.append(el('span', 'num', String(Number(data.slice(8)))), el('span', 'nome', t ? breve(t.nome) : ''));
-    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}` : 'libero'}`);
+    const serranda = !t && chiuso(data, orari.chiusura); // un turno già segnato resta visibile
+    b.append(el('span', 'num', String(Number(data.slice(8)))), el('span', 'nome', t ? breve(t.nome) : serranda ? 'chiuso' : ''));
+    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}` : serranda ? 'circolo chiuso' : 'libero'}`);
     if (t) b.classList.add(t.id === io.id ? 'mio' : 'altro');
+    if (serranda) b.classList.add('chiuso');
     if (data < oggi()) b.classList.add('passato');
     if (data === oggi()) b.classList.add('oggi');
     b.onclick = () => tocca(data);
     g.append(b);
   }
+  $('legenda-chiuso').hidden = orari.chiusura == null;
   disegnaProssimo();
   disegnaClassifica();
   if (admin && soci.length) disegnaSoci();
@@ -582,7 +621,9 @@ async function tocca(data) {
   try {
     if (!t) {
       if (passato) return avvisoBreve('Questo giorno è già passato.');
-      if (await chiedi('Vuoi segnarti per questo turno?', { titolo: quando, ok: 'Segnami', annulla: 'Annulla' })) {
+      if (chiuso(data, orari.chiusura)) return avvisoBreve(`Il circolo è ${testoChiusura(orari.chiusura)}.`);
+      const ore = fascia(orari);
+      if (await chiedi(ore ? `Vuoi segnarti per il turno ${ore}?` : 'Vuoi segnarti per questo turno?', { titolo: quando, ok: 'Segnami', annulla: 'Annulla' })) {
         await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome });
         avvisoBreve(`Turno segnato: ${quando}`);
       }
@@ -628,11 +669,42 @@ function mostraAgenda() {
     disegna();
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; $('stato').hidden = false; });
   if (admin) caricaSoci();
+  $('impostazioni').hidden = !admin;
+  $('form-orari').onsubmit = salvaOrari;
+}
+
+// Orari in testata per tutti, anche prima di entrare; l'admin li cambia dal suo pannello.
+function ascoltaOrari() {
+  onSnapshot(doc(db, 'impostazioni', 'circolo'), (snap) => {
+    orari = snap.data() ?? {};
+    const righe = [fascia(orari) && `aperto ${fascia(orari)}`, testoChiusura(orari.chiusura)].filter(Boolean);
+    $('orario').replaceChildren(...righe.map((r) => el('span', '', r)));
+    $('orario').hidden = !righe.length;
+    $('apre').value = orari.apre ?? '';
+    $('chiude').value = orari.chiude ?? '';
+    $('chiusura').value = orari.chiusura ?? '';
+    if (io) disegna();
+  }, () => {});
+}
+
+async function salvaOrari(e) {
+  e.preventDefault();
+  const [apre, chiude, c] = [$('apre').value, $('chiude').value, $('chiusura').value];
+  if (!apre !== !chiude) return chiedi('Scrivi sia l\'apertura sia la chiusura, oppure lascia vuoti entrambi.');
+  $('salva-orari').disabled = true;
+  try {
+    await setDoc(doc(db, 'impostazioni', 'circolo'), { apre, chiude, chiusura: c === '' ? null : Number(c) });
+    avvisoBreve('Orari salvati');
+  } catch {
+    await chiedi('Controlla la connessione e riprova.', { titolo: 'Orari non salvati' });
+  }
+  $('salva-orari').disabled = false;
 }
 
 async function avvia() {
   try {
     const { user } = await signInAnonymously(auth);
+    ascoltaOrari();
     const chiaveAdmin = new URL(location.href).searchParams.get('admin');
     admin = (await getDoc(doc(db, 'admin', user.uid))).exists();
     if (chiaveAdmin && !admin) {

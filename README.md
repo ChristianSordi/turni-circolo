@@ -25,6 +25,9 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
   Poi scegli se eliminare anche i suoi turni (tutti, anche quelli già fatti, quindi sparisce dalla
   classifica) o tenerli in calendario e in classifica. Se chiede di cancellare i suoi dati, eliminali.
   Da quel telefono non potrà più iscriversi: se deve tornare, lo fa da un altro browser o telefono.
+- **Orari e giorno di chiusura:** in fondo al calendario, **Orari del circolo** → "Salva orari".
+  Gli orari compaiono in cima alla pagina per tutti; nel giorno di chiusura nessuno può segnarsi
+  (i turni già segnati quel giorno restano).
 - **Link del circolo finito in mani sbagliate:** cambia il codice del circolo nelle regole (vedi sotto)
   e manda il link nuovo nel gruppo. Chi è già iscritto non si accorge di nulla.
 

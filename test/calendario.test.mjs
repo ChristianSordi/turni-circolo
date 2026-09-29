@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -47,4 +47,17 @@ test('classifica: solo turni fatti, per socio, pari merito, filtro anno, nome pi
   assert.deepEqual(classifica(turni, oggi).map((r) => [r.posto, r.id]), [[1, 'a'], [1, 'c'], [3, 'b'], [3, 'd']]);
   assert.equal(classifica(turni, oggi)[0].nome, 'Anna Bianchi Rossi');
   assert.deepEqual(classifica({}, oggi, '2026'), []);
+});
+
+test('giorno di chiusura e orari', () => {
+  assert.equal(chiuso('2026-10-05', 1), true); // lunedì
+  assert.equal(chiuso('2026-10-04', 1), false);
+  assert.equal(chiuso('2026-10-04', 0), true); // domenica = 0, non "falso"
+  assert.equal(chiuso('2026-10-05', null), false);
+  assert.equal(testoChiusura(1), 'chiuso il lunedì');
+  assert.equal(testoChiusura(0), 'chiuso la domenica');
+  assert.equal(testoChiusura(null), '');
+  assert.equal(fascia({ apre: '18:00', chiude: '00:00' }), 'dalle 18:00 alle 24:00');
+  assert.equal(fascia({ apre: '18:00', chiude: '' }), '');
+  assert.equal(fascia(), '');
 });
