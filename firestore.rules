@@ -5,28 +5,37 @@ service cloud.firestore {
     function dispositivo() {
       return get(/databases/$(database)/documents/dispositivi/$(request.auth.uid)).data;
     }
-    function persona(segreto) {
-      return get(/databases/$(database)/documents/persone/$(segreto)).data;
+    function persona(chiave) {
+      return get(/databases/$(database)/documents/persone/$(chiave)).data;
     }
     function isAdmin() {
       return exists(/databases/$(database)/documents/admin/$(request.auth.uid));
     }
-
-    // Profilo: la chiave è il segreto personale. Si legge solo conoscendolo, mai in elenco.
-    match /persone/{segreto} {
-      allow get: if request.auth != null;
-      allow create: if request.auth != null
-        && segreto.size() >= 20
-        && request.resource.data.keys().hasOnly(['id', 'nome', 'codice'])
-        // Sostituisci CODICE-CIRCOLO SOLO nella console Firebase, mai nel repo.
-        && request.resource.data.codice == 'CODICE-CIRCOLO'
-        && request.resource.data.id == request.auth.uid
-        && request.resource.data.nome is string
-        && request.resource.data.nome.size() >= 1
-        && request.resource.data.nome.size() <= 60;
+    // Nome e cognome obbligatori, spazi singoli, max 60 caratteri (come profilo.js).
+    function nomeValido(nome) {
+      return nome is string && nome.size() <= 60 && nome.matches('^[^ ]+( [^ ]+)+$');
     }
 
-    // Collega un dispositivo (uid anonimo) a una persona: serve il suo segreto.
+    // Profilo: la chiave è SHA-256 di nome + PIN. Si legge solo conoscendola; l'elenco solo l'admin.
+    match /persone/{chiave} {
+      allow get: if request.auth != null;
+      allow list, delete: if isAdmin();
+      allow create: if request.auth != null
+        && chiave.size() >= 20
+        && nomeValido(request.resource.data.nome)
+        && (
+          // Iscrizione. Sostituisci CODICE-CIRCOLO SOLO nella console Firebase, mai nel repo.
+          (request.resource.data.keys().hasOnly(['id', 'nome', 'codice'])
+            && request.resource.data.codice == 'CODICE-CIRCOLO'
+            && request.resource.data.id == request.auth.uid)
+          // Reset PIN: l'admin ricrea il profilo con la nuova chiave e lo stesso id.
+          || (isAdmin()
+            && request.resource.data.keys().hasOnly(['id', 'nome'])
+            && request.resource.data.id is string)
+        );
+    }
+
+    // Collega un dispositivo (uid anonimo) a un profilo: serve la sua chiave.
     match /dispositivi/{uid} {
       allow read: if request.auth.uid == uid;
       allow create, update: if request.auth.uid == uid
@@ -41,7 +50,8 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['id', 'nome'])
         && request.resource.data.id == persona(dispositivo().segreto).id
         && request.resource.data.nome == persona(dispositivo().segreto).nome;
-      allow delete: if isAdmin() || resource.data.id == dispositivo().id;
+      // Profilo ancora esistente: dopo un reset PIN il vecchio dispositivo non cancella più.
+      allow delete: if isAdmin() || resource.data.id == persona(dispositivo().segreto).id;
     }
 
     // Sostituisci CAMBIAMI con la parola segreta SOLO nella console Firebase, mai nel repo.
