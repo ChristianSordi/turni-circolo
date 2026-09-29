@@ -1,7 +1,7 @@
 # Circolo Arci San Liberato — Turni
 
-Agenda condivisa dei turni: si apre il link del circolo, si scrive il proprio nome la prima volta,
-si tocca un giorno libero per segnarsi. Nessun account.
+Agenda condivisa dei turni: si apre il link del circolo, la prima volta si scrivono nome e cognome
+e si sceglie un PIN di 4 cifre, poi si tocca un giorno libero per segnarsi. Nessun account.
 
 ## Messa online (una volta sola)
 
@@ -28,19 +28,24 @@ si tocca un giorno libero per segnarsi. Nessun account.
    `https://<tuo-utente>.github.io/<repo>/?circolo=<codice-circolo>&admin=<parola-segreta>`:
    entri nel circolo e il telefono diventa amministratore.
 9. Manda `https://<tuo-utente>.github.io/<repo>/?circolo=<codice-circolo>` nel gruppo del circolo,
-   con due raccomandazioni: **appena entrati, mandarsi il proprio link personale su WhatsApp**
-   (tasto in fondo alla pagina) e **aggiungere la pagina alla schermata Home**. Su iPhone Safari
-   cancella i dati dei siti non aperti per 7 giorni: senza link personale si perderebbero i
-   propri turni (l'admin può comunque toglierli); dalla schermata Home questo non succede.
+   raccomandando di **ricordare il PIN** e di **aggiungere la pagina alla schermata Home**.
 
 **Se il link del circolo finisce in mani sbagliate:** cambia il codice nelle regole (console →
-Firestore → Regole → Pubblica) e manda il link nuovo. Chi è già entrato continua a funzionare.
+Firestore → Regole → Pubblica) e manda il link nuovo. Chi è già iscritto continua a funzionare
+(il codice serve solo per iscriversi).
 
 ## Uso
 
-- **Altro dispositivo / telefono nuovo:** in fondo alla pagina c'è "Il tuo link personale" →
-  "Invia su WhatsApp" a sé stessi → aprilo sull'altro dispositivo.
+- **Altro dispositivo, telefono nuovo, o il telefono "si è dimenticato":** si apre la pagina (anche
+  senza il link del circolo) e si scrivono lo stesso nome e cognome e lo stesso PIN: si ritrovano i
+  propri turni. Maiuscole e spazi non contano. (Su iPhone Safari cancella i dati dei siti non aperti
+  per 7 giorni: con il PIN non è un problema.)
 - **Admin:** tocca un giorno occupato per togliere il turno di chiunque.
+- **PIN dimenticato:** l'admin, in fondo alla pagina, nell'elenco **Soci** tocca "Reimposta PIN"
+  accanto al nome, sceglie il nuovo PIN e lo comunica al socio. I turni restano suoi; il vecchio PIN
+  smette di funzionare su tutti i dispositivi.
+- **Limite:** un PIN di 4 cifre ferma errori e furbetti, non un attacco automatico deciso di un socio.
+  In caso di abusi: reimposta il PIN della vittima.
 - **Correggere un nome:** console Firebase → Firestore → `persone` → modifica `nome`
   (i turni già segnati mantengono il vecchio nome: modificali in `turni`).
 
