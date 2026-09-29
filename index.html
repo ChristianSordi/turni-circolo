@@ -61,18 +61,14 @@
   .logo { position: absolute; bottom: -46px; right: max(16px, calc(50% - 264px)); width: 104px; height: 104px;
           border-radius: 50%; background: #fff; box-shadow: 0 0 0 5px var(--sfondo); }
 
-  /* Icona tema: luna col chiaro, sole con lo scuro */
-  .aspetto { position: absolute; top: 12px; right: max(16px, calc(50% - 264px)); display: grid; place-items: center;
-             width: 44px; height: 44px; padding: 0; border: 2px solid var(--linea); border-radius: 50%;
-             background: var(--superficie); }
-  .aspetto svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .sole { display: none; }
-  :root[data-theme="dark"] .sole { display: block; }
-  :root[data-theme="dark"] .luna { display: none; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .sole { display: block; }
-    :root:not([data-theme="light"]) .luna { display: none; }
-  }
+  /* Tema: automatico, chiaro, scuro */
+  .aspetto { position: absolute; top: 12px; right: max(16px, calc(50% - 264px)); display: flex; gap: 2px;
+             padding: 3px; border-radius: 99px; background: var(--preso); }
+  .aspetto button { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 0;
+                    border-radius: 50%; background: transparent; }
+  .aspetto button[aria-pressed="true"] { background: var(--inchiostro); color: var(--su-inchiostro); }
+  .aspetto svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .aspetto .pieno { fill: currentColor; }
 
   .pagina { max-width: 560px; margin: 0 auto; padding: 0 16px 40px; }
   .nota { color: var(--grigio); font-size: .9rem; }
@@ -193,11 +189,15 @@
     <p>Circolo Arci San Liberato</p>
   </div>
   <div class="pace"></div>
-  <button id="aspetto" class="aspetto" aria-label="Cambia tema chiaro o scuro">
-    <svg class="luna" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-    <svg class="sole" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/>
-      <path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>
-  </button>
+  <div class="aspetto" role="group" aria-label="Tema">
+    <button data-aspetto="auto" aria-pressed="true" aria-label="Tema automatico, come il telefono" title="Automatico">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" class="pieno"/></svg></button>
+    <button data-aspetto="light" aria-pressed="false" aria-label="Tema chiaro" title="Chiaro">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/>
+        <path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg></button>
+    <button data-aspetto="dark" aria-pressed="false" aria-label="Tema scuro" title="Scuro">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+  </div>
   <img class="logo" src="logo.png" alt="Logo del Circolo Arci San Liberato" width="104" height="104">
 </header>
 
@@ -604,13 +604,15 @@ async function avvia() {
   }
 }
 
-// Aspetto: segue il sistema finché il socio non tocca l'icona; la scelta resta su questo dispositivo.
-$('aspetto').onclick = () => {
-  const r = document.documentElement;
-  const scuro = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-  r.dataset.theme = scuro ? 'light' : 'dark';
-  try { localStorage.setItem('aspetto', r.dataset.theme); } catch {}
-};
+// Tema: automatico (segue il telefono), chiaro o scuro; la scelta resta su questo dispositivo.
+function aspetto(scelta) {
+  if (scelta === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = scelta;
+  try { localStorage.setItem('aspetto', scelta); } catch {}
+  for (const b of document.querySelectorAll('[data-aspetto]')) b.setAttribute('aria-pressed', String(b.dataset.aspetto === scelta));
+}
+for (const b of document.querySelectorAll('[data-aspetto]')) b.onclick = () => aspetto(b.dataset.aspetto);
+aspetto(document.documentElement.dataset.theme ?? 'auto');
 
 avvia();
 </script>
