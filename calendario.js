@@ -39,3 +39,13 @@ export function classifica(turni, oggi, anno = null) {
   righe.forEach((r, i) => { r.posto = i && r.turni === righe[i - 1].turni ? righe[i - 1].posto : i + 1; });
   return righe;
 }
+
+// Promemoria del mattino: chi ha il turno tra 7 giorni e chi domani. oggi = Date locale.
+export const avvisi = (oggi, turni, orari = {}) =>
+  [[7, 'Tra una settimana'], [1, 'Domani']].flatMap(([n, quando]) => {
+    const data = iso(new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() + n));
+    const t = turni[data];
+    if (!t) return [];
+    const testo = [giornoLeggibile(data), fascia(orari)].filter(Boolean).join(', ');
+    return [{ id: t.id, titolo: `${quando} hai il turno al circolo`, testo: testo[0].toUpperCase() + testo.slice(1) }];
+  });

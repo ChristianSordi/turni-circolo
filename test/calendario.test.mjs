@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -60,4 +60,18 @@ test('giorno di chiusura e orari', () => {
   assert.equal(fascia({ apre: '18:00', chiude: '00:00' }), 'dalle 18:00 alle 24:00');
   assert.equal(fascia({ apre: '18:00', chiude: '' }), '');
   assert.equal(fascia(), '');
+});
+
+test('promemoria: una settimana prima e il giorno prima, anche a cavallo del mese', () => {
+  const turni = {
+    '2026-11-06': { id: 'a', nome: 'Anna Bianchi' }, // +7
+    '2026-10-31': { id: 'b', nome: 'Bruno Neri' },   // +1
+    '2026-11-01': { id: 'c', nome: 'Carla Verdi' },  // +2: niente
+  };
+  assert.deepEqual(avvisi(new Date(2026, 9, 30, 9), turni, { apre: '18:00', chiude: '00:00' }), [
+    { id: 'a', titolo: 'Tra una settimana hai il turno al circolo', testo: 'Venerdì 6 novembre, dalle 18:00 alle 24:00' },
+    { id: 'b', titolo: 'Domani hai il turno al circolo', testo: 'Sabato 31 ottobre, dalle 18:00 alle 24:00' },
+  ]);
+  assert.equal(avvisi(new Date(2026, 9, 30), turni)[1].testo, 'Sabato 31 ottobre');
+  assert.deepEqual(avvisi(new Date(2026, 0, 1), turni), []);
 });

@@ -11,6 +11,11 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **Telefono nuovo o pagina che non ti riconosce più:** apri la pagina e scrivi gli stessi nome,
   cognome e PIN: ritrovi i tuoi turni. Maiuscole e spazi non contano.
 - **PIN dimenticato:** chiedi all'amministratore di reimpostarlo.
+- **Promemoria sul telefono** (una settimana prima e il giorno prima del turno): in fondo al calendario
+  tocca "Attiva promemoria" e accetta le notifiche. Su **Android** basta Chrome. Su **iPhone** (iOS 16.4
+  o successivo) prima tocca Condividi → "Aggiungi alla schermata Home", apri Turni dall'icona e rientra
+  con nome, cognome e PIN: da Safari normale Apple non manda notifiche. Chi aveva già l'icona sulla
+  Home da prima la toglie e la rimette. I promemoria valgono per il telefono dove li attivi.
 
 ## Per l'amministratore
 
@@ -52,11 +57,30 @@ Parola admin e codice del circolo devono essere lunghi e casuali, non parole:
 
 ## Sviluppo
 
-Il sito è statico (`index.html`, `calendario.js`, `profilo.js`, `logo.png`, `icona.png`) e si
+Il sito è statico (`index.html`, `calendario.js`, `profilo.js`, `sw.js`, `manifest.webmanifest`,
+immagini) e si
 pubblica da solo con GitHub Pages a ogni push su `master`. I dati stanno su Firebase (Firestore in
 Europa, accesso anonimo).
 
 Serve Java 21+ per gli emulatori Firebase (auth 9099, Firestore 8181).
+
+I promemoria li manda ogni mattina alle 9 la funzione `functions/index.js` (Cloud Functions,
+`europe-west1`). Pubblicarla è sicuro anche dalla cartella del repository, perché `--only functions`
+non tocca le regole:
+
+```bash
+npx firebase deploy --only functions --project turni-sanliberato
+```
+
+Le chiavi delle notifiche (VAPID) stanno in `functions/.env` (fuori da git, copia in
+`prod/vapid.local.json`); la pubblica è anche in `index.html`. Se si cambiano, i promemoria vanno
+riattivati su ogni telefono.
+
+**Costi: zero.** Il progetto è sul piano Blaze solo per la funzione programmata; tutto resta nelle
+quote gratuite (1 job di Cloud Scheduler su 3 gratis, ~30 esecuzioni al mese su 2 milioni). Le vecchie
+immagini della funzione si cancellano da sole dopo 1 giorno (`functions:artifacts:setpolicy`). Un
+avviso di budget a 1 € in Google Cloud → Fatturazione → Budget e avvisi manda un'email se qualcosa
+cambia: l'avviso non blocca la spesa, avvisa soltanto.
 
 ```bash
 npm install

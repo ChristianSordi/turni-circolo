@@ -3,3 +3,5 @@ node_modules/
 segreti.local.txt
 prod/
 docs/superpowers/
+functions/.env
+functions/calendario.js

@@ -21,6 +21,7 @@
 <meta property="og:image:alt" content="Logo del Circolo Arci San Liberato">
 <link rel="icon" href="logo.png">
 <link rel="apple-touch-icon" href="icona.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Baloo+2:wght@600;800&display=swap" rel="stylesheet">
@@ -181,6 +182,12 @@
   #elenco-soci .comandi { flex: none; display: flex; gap: 6px; }
   #elenco-soci .elimina { color: var(--rosso-testo); }
 
+  /* Promemoria */
+  .promemoria { margin-top: 24px; padding: 16px; border: 2px solid var(--linea); border-radius: 14px; }
+  .promemoria h2 { margin: 0 0 4px; font: 800 1.25rem/1.2 var(--titoli); }
+  .promemoria p { margin: 0 0 12px; }
+  .promemoria.attivi { border-color: var(--rosso); }
+
   /* Orari (admin) */
   #impostazioni { margin-top: 36px; }
   #impostazioni h2 { margin: 0 0 4px; font: 800 1.4rem/1.2 var(--titoli); }
@@ -273,7 +280,11 @@
       <li><i class="l-libero"></i>Libero: tocca per segnarti</li>
       <li id="legenda-chiuso" hidden><i class="l-chiuso"></i>Circolo chiuso</li>
     </ul>
-    <p class="nota">Consiglio: aggiungi questa pagina alla schermata Home.</p>
+    <section id="promemoria" class="promemoria" aria-live="polite">
+      <h2>Promemoria sul telefono</h2>
+      <p id="p-testo">Un avviso sul telefono una settimana prima e il giorno prima di ogni tuo turno.</p>
+      <button id="p-tasto" class="secondario" hidden></button>
+    </section>
     <section id="impostazioni" hidden>
       <h2>Orari del circolo</h2>
       <p class="nota">Li vedono tutti in cima alla pagina. Nel giorno di chiusura nessuno può segnarsi.</p>
@@ -349,7 +360,8 @@ if (locale) {
 }
 
 const $ = (id) => document.getElementById(id);
-const oggi = () => iso(new Date()); // ricalcolato: la pagina può restare aperta per giorni
+const oggi = () => iso(new Date());
+const VAPID = 'BGwCeOScx5EtGMTGVe3KM10PAzJvq49RAqXnSocs3TVC0FhR26zLimaZH1gjnrQM52IORqGErf29ryuekgVc2nM'; // pubblica // ricalcolato: la pagina può restare aperta per giorni
 let io = null;       // { id, nome, segreto } — segreto = chiave del profilo (nome + PIN)
 let admin = false;
 let turni = {};      // 'AAAA-MM-GG' → { id, nome }
@@ -607,6 +619,67 @@ function cambiaMese(delta) {
   disegna();
 }
 
+// Promemoria: il telefono si iscrive alle notifiche; le manda ogni mattina functions/index.js.
+const iPhone = /iPhone|iPad/.test(navigator.userAgent) || (/Mac/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+
+async function disegnaPromemoria() {
+  const [box, t, b] = [$('promemoria'), $('p-testo'), $('p-tasto')];
+  box.classList.remove('attivi');
+  b.hidden = true;
+  if (!('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)) {
+    t.textContent = iPhone
+      ? 'Su iPhone: tocca Condividi, poi "Aggiungi alla schermata Home", e apri Turni da lì. La prima volta rientri con nome, cognome e PIN.'
+      : 'Questo browser non manda promemoria: apri la pagina con Chrome.';
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    t.textContent = 'Hai bloccato le notifiche di questa pagina: riattivale dalle impostazioni del telefono.';
+    return;
+  }
+  const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+  const attivi = sub && (await getDoc(doc(db, 'promemoria', auth.currentUser.uid))).exists();
+  box.classList.toggle('attivi', Boolean(attivi));
+  t.textContent = attivi ? 'Attivi su questo telefono: ti avvisiamo una settimana prima e il giorno prima di ogni tuo turno.'
+    : 'Un avviso sul telefono una settimana prima e il giorno prima di ogni tuo turno.';
+  b.textContent = attivi ? 'Disattiva promemoria' : 'Attiva promemoria';
+  b.onclick = attivi ? disattivaPromemoria : attivaPromemoria;
+  b.hidden = false;
+}
+
+async function attivaPromemoria() {
+  $('p-tasto').disabled = true;
+  try {
+    if (await Notification.requestPermission() !== 'granted') return; // su iPhone va chiesto subito dopo il tocco
+    const reg = await navigator.serviceWorker.ready;
+    const chiave = Uint8Array.from(atob(VAPID.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+    const sub = (await reg.pushManager.getSubscription())
+      ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiave });
+    const { endpoint, keys } = sub.toJSON();
+    await setDoc(doc(db, 'promemoria', auth.currentUser.uid), { id: io.id, endpoint, p256dh: keys.p256dh, auth: keys.auth });
+    reg.showNotification('Promemoria attivi', { body: 'Così ti arriveranno gli avvisi dei tuoi turni.', icon: 'icona.png' });
+  } catch (e) {
+    console.error(e);
+    await chiedi('Controlla la connessione e riprova.', { titolo: 'Promemoria non attivati' });
+  } finally {
+    $('p-tasto').disabled = false;
+    disegnaPromemoria();
+  }
+}
+
+async function disattivaPromemoria() {
+  $('p-tasto').disabled = true;
+  try {
+    await deleteDoc(doc(db, 'promemoria', auth.currentUser.uid));
+    await (await (await navigator.serviceWorker.ready).pushManager.getSubscription())?.unsubscribe();
+    avvisoBreve('Promemoria disattivati');
+  } catch {
+    await chiedi('Controlla la connessione e riprova.', { titolo: 'Promemoria non disattivati' });
+  } finally {
+    $('p-tasto').disabled = false;
+    disegnaPromemoria();
+  }
+}
+
 function mostraVista(classificaAperta) {
   $('vista-calendario').hidden = classificaAperta;
   $('vista-classifica').hidden = !classificaAperta;
@@ -670,6 +743,8 @@ function mostraAgenda() {
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; $('stato').hidden = false; });
   if (admin) caricaSoci();
   $('impostazioni').hidden = !admin;
+  navigator.serviceWorker?.register('sw.js');
+  disegnaPromemoria().catch(console.error);
   $('form-orari').onsubmit = salvaOrari;
 }
 

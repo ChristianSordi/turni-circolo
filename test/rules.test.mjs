@@ -171,3 +171,17 @@ test('orari: li legge chiunque, li scrive solo l\'admin, solo valori sensati', a
   }
   await assertFails(setDoc(doc(db('capo'), 'impostazioni', 'altro'), buoni));
 });
+
+test('promemoria: ognuno iscrive solo il proprio telefono, a nome suo', async () => {
+  const sub = { id: 'anna', endpoint: 'https://push.example/abc', p256dh: 'chiave', auth: 'segreto' };
+  await assertSucceeds(setDoc(doc(db('anna'), 'promemoria', 'anna'), sub));
+  await assertSucceeds(getDoc(doc(db('anna'), 'promemoria', 'anna')));
+  await assertFails(getDoc(doc(db('bruno'), 'promemoria', 'anna')));
+  await assertFails(deleteDoc(doc(db('bruno'), 'promemoria', 'anna')));
+  await assertFails(setDoc(doc(db('bruno'), 'promemoria', 'bruno'), sub)); // a nome di Anna
+  await assertFails(setDoc(doc(db('bruno'), 'promemoria', 'anna'), { ...sub, id: 'bruno' }));
+  await assertFails(setDoc(doc(db('carla'), 'promemoria', 'carla'), { ...sub, id: 'carla' })); // senza profilo
+  await assertFails(setDoc(doc(db('anna'), 'promemoria', 'anna'), { ...sub, endpoint: 'http://push.example/abc' }));
+  await assertFails(setDoc(doc(db('anna'), 'promemoria', 'anna'), { ...sub, extra: 1 }));
+  await assertSucceeds(deleteDoc(doc(db('anna'), 'promemoria', 'anna')));
+});
