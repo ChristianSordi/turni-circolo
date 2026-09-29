@@ -2,3 +2,4 @@ node_modules/
 *-debug.log
 segreti.local.txt
 prod/
+docs/superpowers/
