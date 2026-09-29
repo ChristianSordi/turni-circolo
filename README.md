@@ -16,9 +16,12 @@ e si sceglie un PIN di 4 cifre, poi si tocca un giorno libero per segnarsi. Ness
    chi indovina la parola admin può cancellare tutti i turni. Generali così e salvali da parte:
    `node -e "console.log(crypto.randomUUID())"` (uno per la parola admin, uno per il codice).
 
-   ⚠️ **Non usare mai `firebase deploy`**: pubblicherebbe `firestore.rules` del repository, con i
-   segnaposto `CAMBIAMI` / `CODICE-CIRCOLO` visibili a tutti su GitHub. Le regole vere stanno solo
-   nella console.
+   ⚠️ **Non usare mai `firebase deploy` dalla cartella del repository**: pubblicherebbe
+   `firestore.rules` con i segnaposto `CAMBIAMI` / `CODICE-CIRCOLO` visibili a tutti su GitHub.
+   Le regole vere stanno nella cartella locale `prod/` (ignorata da git, insieme a
+   `segreti.local.txt`). Dopo aver cambiato `firestore.rules`, riporta la modifica in
+   `prod/firestore.rules` mantenendo i valori veri, poi:
+   `cd prod && npx firebase deploy --only firestore:rules --project turni-sanliberato`.
 5. Impostazioni progetto → Le tue app → icona Web `</>` → registra l'app → copia i valori di
    `firebaseConfig` in `index.html` (non sono segreti).
 6. **GitHub** — crea un repository pubblico, carica `index.html`, `calendario.js` e `profilo.js`
