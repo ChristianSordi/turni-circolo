@@ -26,8 +26,14 @@
   input { font: inherit; width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #999; border-radius: 8px; }
   .grande { display: block; width: 100%; margin-top: 10px; padding: 14px; border: 0; border-radius: 8px;
             background: var(--verde); color: #fff; font-weight: bold; }
-  .link { margin-top: 24px; padding: 12px; border: 1px solid #ccc; border-radius: 8px; }
-  .link code { display: block; overflow-wrap: anywhere; font-size: .8rem; margin: 6px 0; }
+  label { display: block; margin-top: 14px; font-weight: bold; }
+  .avviso { margin-top: 14px; padding: 12px; border: 2px solid #e0a800; border-radius: 8px; background: #fff3cd; }
+  #soci { margin-top: 24px; }
+  #soci h2 { font-size: 1.2rem; margin: 0 0 8px; }
+  #elenco-soci { list-style: none; margin: 0; padding: 0; }
+  #elenco-soci li { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+                    padding: 8px 0; border-bottom: 1px solid #ddd; overflow-wrap: anywhere; }
+  #elenco-soci button { flex: none; padding: 8px 12px; border: 1px solid #999; border-radius: 8px; background: #fff; }
   .grigio { color: #666; font-size: .9rem; }
   [hidden] { display: none !important; }
 </style>
@@ -36,11 +42,15 @@
 <h1>Circolo Arci San Liberato — Turni</h1>
 <p id="stato" class="grigio">Caricamento…</p>
 
-<form id="benvenuto" hidden>
-  <label for="nome">Come ti chiami? (nome e cognome)</label>
-  <input id="nome" maxlength="60" autocomplete="name" required>
-  <button class="grande">Salva</button>
-  <p class="grigio">Sei già iscritto? Apri il tuo link personale (quello che ti sei mandato su WhatsApp).</p>
+<form id="ingresso" hidden>
+  <label for="nome">Nome e cognome</label>
+  <input id="nome" maxlength="60" autocomplete="name" placeholder="es. Mario Rossi">
+  <label for="pin">PIN (4 cifre)</label>
+  <input id="pin" inputmode="numeric" maxlength="4" autocomplete="off">
+  <p class="avviso"><strong>Importante:</strong> ricorda assolutamente il tuo PIN!
+    Ti servirà per rientrare se cambi telefono o se il telefono si dimentica di te.</p>
+  <button class="grande">Entra</button>
+  <p class="grigio">Già iscritto? Scrivi lo stesso nome e PIN e ritrovi i tuoi turni.</p>
 </form>
 
 <main id="agenda" hidden>
@@ -50,24 +60,21 @@
     <button id="dopo" aria-label="Mese successivo">›</button>
   </div>
   <div id="griglia" class="griglia"></div>
-  <p class="grigio">Tocca un giorno libero per segnarti.</p>
-  <div class="link">
-    <strong>Il tuo link personale</strong>
-    <div class="grigio">Mandatelo subito su WhatsApp: se cambi telefono o il browser si dimentica di te, aprilo e ritrovi i tuoi turni.
-      Funziona anche su un altro telefono o computer. Non darlo ad altri.<br>
-      Consiglio: aggiungi questa pagina alla schermata Home.</div>
-    <code id="mio-link"></code>
-    <button id="whatsapp" class="grande">Invia su WhatsApp</button>
-    <button id="copia" class="grande">Copia</button>
-  </div>
+  <p class="grigio">Tocca un giorno libero per segnarti.<br>
+    Consiglio: aggiungi questa pagina alla schermata Home.</p>
+  <section id="soci" hidden>
+    <h2>Soci</h2>
+    <ul id="elenco-soci"></ul>
+  </section>
 </main>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
-import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot }
+import { getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, setDoc, deleteDoc, collection, onSnapshot }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { iso, griglia, giornoLeggibile } from './calendario.js';
+import { normalizzaNome, nomeValido, pinValido, chiave } from './profilo.js';
 
 // Config web dalla console Firebase (Impostazioni progetto → Le tue app). Non è segreta.
 const firebaseConfig = {
@@ -88,9 +95,10 @@ if (locale) {
 
 const $ = (id) => document.getElementById(id);
 const oggi = () => iso(new Date()); // ricalcolato: la pagina può restare aperta per giorni
-let io = null;       // { id, nome, segreto }
+let io = null;       // { id, nome, segreto } — segreto = chiave del profilo (nome + PIN)
 let admin = false;
 let turni = {};      // 'AAAA-MM-GG' → { id, nome }
+let soci = [];       // solo admin: [{ id, nome, segreto }]
 let anno = new Date().getFullYear();
 let mese = new Date().getMonth();
 
@@ -102,37 +110,95 @@ function el(tag, classe = '', testo = '') {
 }
 
 async function profilo(uid) {
-  const url = new URL(location.href);
-  const chiaveAdmin = url.searchParams.get('admin');
-  const segretoLink = url.searchParams.get('io');
-
-  admin = (await getDoc(doc(db, 'admin', uid))).exists();
-  if (chiaveAdmin && !admin) {
-    try { await setDoc(doc(db, 'admin', uid), { chiave: chiaveAdmin }); admin = true; }
-    catch { alert('Chiave amministratore non valida.'); }
-  }
-
-  const mioDispositivo = await getDoc(doc(db, 'dispositivi', uid));
-  let segreto = mioDispositivo.exists() ? mioDispositivo.data().segreto : null;
-
-  if (segretoLink && segretoLink !== segreto) {
-    const p = await getDoc(doc(db, 'persone', segretoLink));
-    if (!p.exists()) alert('Link personale non valido.');
-    else if (confirm(`Questo link è di ${p.data().nome}. Vuoi usare questo dispositivo come ${p.data().nome}?`)) {
-      await setDoc(doc(db, 'dispositivi', uid), { id: p.data().id, segreto: segretoLink });
-      segreto = segretoLink;
-    }
-  }
-  if (!segreto) return null;
-  const p = await getDoc(doc(db, 'persone', segreto));
-  return { ...p.data(), segreto };
+  const d = await getDoc(doc(db, 'dispositivi', uid));
+  if (!d.exists()) return null;
+  const p = await getDoc(doc(db, 'persone', d.data().segreto));
+  return p.exists() ? { ...p.data(), segreto: d.data().segreto } : null; // sparito = PIN reimpostato
 }
 
-async function creaProfilo(uid, nome, codice) {
-  const segreto = crypto.randomUUID();
-  await setDoc(doc(db, 'persone', segreto), { id: uid, nome, codice });
-  await setDoc(doc(db, 'dispositivi', uid), { id: uid, segreto });
-  return { id: uid, nome, segreto };
+const collega = (uid, id, segreto) => setDoc(doc(db, 'dispositivi', uid), { id, segreto });
+
+function modulo() {
+  return new Promise((ok) => {
+    $('ingresso').onsubmit = (e) => {
+      e.preventDefault();
+      const nome = normalizzaNome($('nome').value);
+      const pin = $('pin').value.trim();
+      if (!nomeValido(nome)) return alert('Scrivi nome e cognome (es. Mario Rossi).');
+      if (!pinValido(pin)) return alert('Il PIN deve essere di 4 cifre.');
+      ok({ nome, pin });
+    };
+  });
+}
+
+// Schermata di ingresso: stesso nome + PIN = stessa persona; altrimenti iscrizione (serve ?circolo=).
+async function entra(uid) {
+  const codice = new URL(location.href).searchParams.get('circolo');
+  $('stato').hidden = true;
+  $('ingresso').hidden = false;
+  for (;;) {
+    const { nome, pin } = await modulo();
+    const segreto = await chiave(nome, pin);
+    const p = await getDoc(doc(db, 'persone', segreto));
+    if (p.exists()) {
+      await collega(uid, p.data().id, segreto);
+      $('ingresso').hidden = true;
+      return { ...p.data(), segreto };
+    }
+    if (!codice) {
+      alert('Non ti abbiamo trovato: controlla nome e PIN. Se sei nuovo, apri il link del circolo che trovi nel gruppo WhatsApp.');
+      continue;
+    }
+    if (!confirm(`Non ti abbiamo trovato. Se sei nuovo tocca OK per iscriverti come ${nome}. `
+      + 'Se sei già iscritto tocca Annulla e ricontrolla nome e PIN.')) continue;
+    try {
+      await setDoc(doc(db, 'persone', segreto), { id: uid, nome, codice });
+    } catch (e) {
+      if (e.code !== 'permission-denied') throw e;
+      alert('Link del circolo non valido o scaduto: chiedi quello nuovo nel gruppo.');
+      continue;
+    }
+    await collega(uid, uid, segreto);
+    $('ingresso').hidden = true;
+    return { id: uid, nome, segreto };
+  }
+}
+
+async function caricaSoci() {
+  const snap = await getDocs(collection(db, 'persone'));
+  soci = snap.docs.map((d) => ({ ...d.data(), segreto: d.id })).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  disegnaSoci();
+}
+
+function disegnaSoci() {
+  const quanti = (id) => Object.values(turni).filter((t) => t.id === id).length;
+  $('elenco-soci').replaceChildren(...soci.map((s) => {
+    const n = quanti(s.id);
+    const b = el('button', '', 'Reimposta PIN');
+    b.onclick = () => reimpostaPin(s);
+    const li = el('li');
+    li.append(el('span', '', `${s.nome} (${n} ${n === 1 ? 'turno' : 'turni'})`), b);
+    return li;
+  }));
+  $('soci').hidden = false;
+}
+
+// Reset PIN: stesso id (i turni restano suoi), nuova chiave; la vecchia chiave smette di funzionare.
+async function reimpostaPin(s) {
+  const pin = prompt(`Nuovo PIN di 4 cifre per ${s.nome}:`)?.trim();
+  if (pin === undefined) return;
+  if (!pinValido(pin)) return alert('Il PIN deve essere di 4 cifre.');
+  const nuova = await chiave(s.nome, pin);
+  if (nuova === s.segreto) return alert('È lo stesso PIN di prima.');
+  try {
+    await setDoc(doc(db, 'persone', nuova), { id: s.id, nome: s.nome });
+    await deleteDoc(doc(db, 'persone', s.segreto));
+    alert(`Fatto: comunica a ${s.nome} il nuovo PIN.`);
+  } catch {
+    alert('Operazione non riuscita. Forse un omonimo ha già questo PIN: scegline un altro.');
+  }
+  if (s.segreto === io.segreto) return location.reload(); // PIN dell'admin stesso
+  await caricaSoci();
 }
 
 function disegna() {
@@ -150,6 +216,7 @@ function disegna() {
     b.onclick = () => tocca(data);
     g.append(b);
   }
+  if (admin && soci.length) disegnaSoci();
 }
 
 function cambiaMese(delta) {
@@ -183,15 +250,10 @@ async function tocca(data) {
 }
 
 function mostraAgenda() {
-  history.replaceState(null, '', location.pathname); // via ?circolo, ?io, ?admin dalla barra
+  history.replaceState(null, '', location.pathname); // via ?circolo e ?admin dalla barra
   $('stato').textContent = `Sei: ${io.nome}${admin ? ' (amministratore)' : ''}`;
   $('stato').hidden = false;
   $('agenda').hidden = false;
-  const link = `${location.origin}${location.pathname}?io=${io.segreto}`;
-  $('mio-link').textContent = link;
-  $('whatsapp').onclick = () =>
-    open(`https://wa.me/?text=${encodeURIComponent('Il mio link per i turni del Circolo Arci San Liberato: ' + link)}`);
-  $('copia').onclick = () => navigator.clipboard.writeText(link).then(() => alert('Link copiato.'));
   $('prima').onclick = () => cambiaMese(-1);
   $('dopo').onclick = () => cambiaMese(1);
   disegna();
@@ -200,40 +262,23 @@ function mostraAgenda() {
     turni = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
     disegna();
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; });
+  if (admin) caricaSoci();
 }
 
 async function avvia() {
   try {
     const { user } = await signInAnonymously(auth);
-    io = await profilo(user.uid);
-    if (!io) {
-      const codice = new URL(location.href).searchParams.get('circolo');
-      if (!codice) {
-        $('stato').textContent = "Per usare l'agenda apri il link del circolo (lo trovi nel gruppo WhatsApp).";
-        return;
-      }
-      $('stato').hidden = true;
-      $('benvenuto').hidden = false;
-      const nome = await new Promise((ok) => {
-        $('benvenuto').onsubmit = (e) => {
-          e.preventDefault();
-          const n = $('nome').value.trim();
-          if (n) ok(n);
-        };
-      });
-      $('benvenuto').hidden = true;
-      try {
-        io = await creaProfilo(user.uid, nome, codice);
-      } catch (e) {
-        if (e.code !== 'permission-denied') throw e;
-        $('stato').hidden = false;
-        $('stato').textContent = 'Link del circolo non valido o scaduto: chiedi quello nuovo.';
-        return;
-      }
+    const chiaveAdmin = new URL(location.href).searchParams.get('admin');
+    admin = (await getDoc(doc(db, 'admin', user.uid))).exists();
+    if (chiaveAdmin && !admin) {
+      try { await setDoc(doc(db, 'admin', user.uid), { chiave: chiaveAdmin }); admin = true; }
+      catch { alert('Chiave amministratore non valida.'); }
     }
+    io = (await profilo(user.uid)) ?? (await entra(user.uid));
     mostraAgenda();
   } catch (e) {
     console.error(e);
+    $('ingresso').hidden = true;
     $('stato').hidden = false;
     $('stato').textContent = 'Connessione assente. Ricarica la pagina.';
   }
