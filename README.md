@@ -24,7 +24,7 @@ e si sceglie un PIN di 4 cifre, poi si tocca un giorno libero per segnarsi. Ness
    `cd prod && npx firebase deploy --only firestore:rules --project turni-sanliberato`.
 5. Impostazioni progetto → Le tue app → icona Web `</>` → registra l'app → copia i valori di
    `firebaseConfig` in `index.html` (non sono segreti).
-6. **GitHub** — crea un repository pubblico, carica `index.html`, `calendario.js` e `profilo.js`
+6. **GitHub** — crea un repository pubblico, carica `index.html`, `calendario.js`, `profilo.js`, `logo.png` e `icona.png`
    (o fai push di tutto) → Settings → Pages → Branch `main` / root → Save.
 7. Authentication → Impostazioni → **Domini autorizzati** → aggiungi `<tuo-utente>.github.io`.
 8. Dal tuo telefono apri una volta
@@ -43,6 +43,7 @@ Firestore → Regole → Pubblica) e manda il link nuovo. Chi è già iscritto c
   senza il link del circolo) e si scrivono lo stesso nome e cognome e lo stesso PIN: si ritrovano i
   propri turni. Maiuscole e spazi non contano. (Su iPhone Safari cancella i dati dei siti non aperti
   per 7 giorni: con il PIN non è un problema.)
+- **Classifica:** scheda in alto; conta i turni segnati (anche quelli futuri) dell'anno o da sempre.
 - **Admin:** tocca un giorno occupato per togliere il turno di chiunque.
 - **PIN dimenticato:** l'admin, in fondo alla pagina, nell'elenco **Soci** tocca "Reimposta PIN"
   accanto al nome, sceglie il nuovo PIN e lo comunica al socio. I turni restano suoi; il vecchio PIN

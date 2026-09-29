@@ -16,3 +16,16 @@ export const giornoLeggibile = (s) =>
   new Date(s.slice(0, 4), s.slice(5, 7) - 1, s.slice(8)).toLocaleDateString('it-IT', {
     weekday: 'long', day: 'numeric', month: 'long',
   });
+
+// Classifica turni per socio (per id, col nome più recente); anno 'AAAA' o null = da sempre.
+// A pari turni stessa posizione (1, 2, 2, 4).
+export function classifica(turni, anno = null) {
+  const conta = new Map();
+  for (const [data, t] of Object.entries(turni).sort()) {
+    if (anno && !data.startsWith(anno)) continue;
+    conta.set(t.id, { id: t.id, nome: t.nome, turni: (conta.get(t.id)?.turni ?? 0) + 1 });
+  }
+  const righe = [...conta.values()].sort((a, b) => b.turni - a.turni || a.nome.localeCompare(b.nome, 'it'));
+  righe.forEach((r, i) => { r.posto = i && r.turni === righe[i - 1].turni ? righe[i - 1].posto : i + 1; });
+  return righe;
+}

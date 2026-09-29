@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -28,4 +28,20 @@ test('febbraio 2028 bisestile parte di martedì', () => {
 
 test('giornoLeggibile in italiano', () => {
   assert.equal(giornoLeggibile('2026-10-01'), 'giovedì 1 ottobre');
+});
+
+test('classifica: per socio, pari merito, filtro anno, nome più recente', () => {
+  const turni = {
+    '2025-12-31': { id: 'a', nome: 'Anna Bianchi' },
+    '2026-01-02': { id: 'b', nome: 'Bruno Neri' },
+    '2026-01-03': { id: 'c', nome: 'Carla Verdi' },
+    '2026-02-01': { id: 'a', nome: 'Anna Bianchi Rossi' },
+    '2026-02-02': { id: 'c', nome: 'Carla Verdi' },
+    '2026-03-01': { id: 'd', nome: 'Dino Gialli' },
+  };
+  assert.deepEqual(classifica(turni, '2026').map((r) => [r.posto, r.id, r.turni]),
+    [[1, 'c', 2], [2, 'a', 1], [2, 'b', 1], [2, 'd', 1]]);
+  assert.deepEqual(classifica(turni).map((r) => [r.posto, r.id]), [[1, 'a'], [1, 'c'], [3, 'b'], [3, 'd']]);
+  assert.equal(classifica(turni)[0].nome, 'Anna Bianchi Rossi');
+  assert.deepEqual(classifica({}, '2026'), []);
 });
