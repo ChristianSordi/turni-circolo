@@ -1,6 +1,6 @@
 # Turni Circolo Arci San Liberato — Design
 
-Data: 2026-09-29
+Data: 2026-09-29 (rev. 2: identità con nome + PIN al posto del link personale)
 
 ## Obiettivo
 
@@ -11,133 +11,158 @@ Utenti anche anziani: deve essere il più semplice possibile.
 ## Requisiti
 
 - Un solo turno al giorno, una sola persona per turno.
-- Nessuna registrazione: al primo accesso si chiede solo "Come ti chiami?".
+- Nessun account: al primo accesso si chiedono solo **nome e cognome** (obbligatori entrambi) e
+  un **PIN di 4 cifre**, con l'avviso "Importante: ricorda assolutamente il tuo PIN".
+- Identità robusta: se il telefono "dimentica" l'utente (Safari su iPhone cancella i dati dei siti
+  non aperti per 7 giorni, pulizia del browser, telefono nuovo, altro computer) si rientra
+  scrivendo **lo stesso nome e PIN**, senza link e senza l'intervento di nessuno.
 - Tutti i membri del circolo vedono tutti i turni (nome di chi lo fa). Chi non è membro non vede nulla.
 - Ci si può segnare solo in un giorno libero.
 - Si può togliere solo il proprio turno.
 - Giorni passati: sola consultazione (niente prenotazioni né cancellazioni).
-- Multi-dispositivo: ogni utente ha un **link personale**, sempre visibile nella sua
-  schermata, che può inviarsi (WhatsApp / copia) per usare lo stesso profilo su un
-  altro dispositivo. Serve anche in caso di cambio telefono.
 - Admin: un link segreto rende amministratore il dispositivo che lo apre; l'admin può
-  togliere qualsiasi turno.
+  togliere qualsiasi turno e **reimpostare il PIN** di qualsiasi socio.
 - Tutto gratuito: GitHub Pages + Firebase (piano Spark).
 - Si distribuisce **un solo link del circolo** a tutti (es. gruppo WhatsApp), che contiene il
-  **codice del circolo**: `…/?circolo=CODICE`. Senza codice non si entra (blocco lato server).
-  Il codice vive solo nelle regole della console Firebase; se il link esce dal gruppo, si
-  cambia lì e chi è già entrato continua a funzionare.
+  **codice del circolo**: `…/?circolo=CODICE`. Serve **solo per iscriversi** (blocco lato server);
+  per rientrare con nome e PIN non serve. Il codice vive solo nelle regole della console Firebase;
+  se il link esce dal gruppo, si cambia lì e chi è già iscritto continua a funzionare.
 
-## Fuori scope (v1)
+## Fuori scope
 
-- Cambio nome dopo il primo inserimento (lo può correggere l'admin dalla console Firebase).
+- Cambio nome dopo l'iscrizione (lo può correggere l'admin dalla console Firebase).
 - Più turni al giorno, notifiche, promemoria, esportazione.
+- Protezione del PIN contro un attacco automatico deciso (vedi Limiti).
 
 ## Interfaccia
 
 Una sola pagina, in italiano, caratteri grandi, pensata per telefono.
 Intestazione e titolo della pagina: **"Circolo Arci San Liberato — Turni"**.
 
-1. **Primo accesso dal link del circolo:** schermata con "Come ti chiami?" + campo + tasto "Salva".
-   Senza codice nel link: "Per usare l'agenda apri il link del circolo (lo trovi nel gruppo WhatsApp)."
+1. **Schermata di ingresso** (quando il dispositivo non è collegato a nessuno):
+   - campo "Nome e cognome" (obbligatori entrambi), campo "PIN (4 cifre)" (tastiera numerica);
+   - riquadro evidenziato: "**Importante:** ricorda assolutamente il tuo PIN! Ti servirà per
+     rientrare se cambi telefono o se il telefono si dimentica di te.";
+   - tasto **Entra**; sotto: "Già iscritto? Scrivi lo stesso nome e PIN e ritrovi i tuoi turni.";
+   - nome di una sola parola → "Scrivi nome e cognome (es. Mario Rossi)."; PIN non di 4 cifre →
+     "Il PIN deve essere di 4 cifre.";
+   - nome + PIN trovati → si rientra;
+   - non trovati, con codice del circolo nel link → conferma "Non ti abbiamo trovato. Se sei nuovo
+     tocca OK per iscriverti come X. Se sei già iscritto tocca Annulla e ricontrolla nome e PIN.";
+   - non trovati, senza codice → "Non ti abbiamo trovato: controlla nome e PIN. Se sei nuovo, apri
+     il link del circolo che trovi nel gruppo WhatsApp.";
+   - codice del circolo sbagliato/cambiato → "Link del circolo non valido o scaduto: chiedi quello
+     nuovo nel gruppo."
 2. **Calendario mensile** con frecce ‹ › per cambiare mese.
-   - Giorno libero: bianco.
-   - Giorno di un altro: grigio con il nome.
-   - Giorno mio: verde con il mio nome.
-   - Giorno passato: attenuato, non cliccabile per modifiche.
-3. **Tocco su un giorno** (conferma con dialog nativo `confirm`/`alert`):
-   - libero → "Vuoi segnarti il 12 ottobre?" Sì/No
-   - mio → "Vuoi togliere il tuo turno del 12 ottobre?" Sì/No
-   - di un altro → "Turno di Mario Rossi" (se admin: "Togliere il turno di Mario Rossi?")
-4. **Sotto il calendario, "Il tuo link personale":** il link, tasto "Invia su WhatsApp"
-   (`https://wa.me/?text=...`) e tasto "Copia". Testo: "Aprilo su un altro telefono o
-   computer per usare lo stesso nome."
-5. Aggiornamento **in tempo reale** (listener Firestore `onSnapshot`).
+   - Giorno libero: bianco. Giorno di un altro: grigio con il nome. Giorno mio: verde con il mio nome.
+   - Giorno passato: attenuato, non cliccabile per modifiche. Oggi: bordato (ricalcolato a ogni
+     disegno, la pagina può restare aperta per giorni).
+3. **Tocco su un giorno** (dialog nativi `confirm`/`alert`):
+   - libero → "Vuoi segnarti per giovedì 12 ottobre?"
+   - mio → "Vuoi togliere il tuo turno di …?"
+   - di un altro → "…: turno di Mario Rossi" (se admin: "Togliere il turno di Mario Rossi di …?")
+4. Sotto il calendario: "Consiglio: aggiungi questa pagina alla schermata Home."
+5. **Solo admin — elenco "Soci"**: nomi in ordine alfabetico, con il numero di turni segnati, e
+   tasto **"Reimposta PIN"** → chiede il nuovo PIN → "Fatto: comunica a Mario Rossi il nuovo PIN."
+6. Aggiornamento **in tempo reale** (listener Firestore `onSnapshot`).
 
 ## Architettura
 
-- `index.html` unico: HTML + CSS + JS, SDK Firebase modulare da CDN (gstatic). Niente
-  build, niente npm per la pagina.
+- `index.html`: HTML + CSS + JS, SDK Firebase modulare da CDN (gstatic). Niente build.
+- `calendario.js`: date e griglia del mese. `profilo.js`: normalizzazione nome, validazione
+  nome/PIN, calcolo della chiave del profilo.
 - `firestore.rules`: le regole di sicurezza, unico "backend".
-- Firebase Anonymous Auth: ogni browser ottiene un `uid` stabile, senza schermate di login.
+- Firebase Anonymous Auth: ogni browser ottiene un `uid`, senza schermate di login.
+
+### Chiave del profilo
+
+`chiave = SHA-256("turni-circolo:" + nomeNormalizzato.toLowerCase() + ":" + pin)` in esadecimale
+(64 caratteri). `nomeNormalizzato` = spazi iniziali/finali tolti e spazi multipli ridotti a uno.
+Quindi "mario rossi" e "Mario  Rossi" sono la stessa persona; il nome mostrato resta come scritto
+all'iscrizione (spazi normalizzati).
 
 ### Modello dati (Firestore)
 
 | Raccolta | Chiave | Campi | Scopo |
 |---|---|---|---|
-| `persone` | `segreto` (casuale, 20+ caratteri) | `id`, `nome`, `codice` | Profilo della persona. `id` = uid del primo dispositivo. Leggibile solo conoscendo il segreto (get sì, list no). |
-| `dispositivi` | `uid` | `id`, `segreto` | Collega un dispositivo a una persona. Leggibile solo dal proprio uid. |
+| `persone` | chiave del profilo | `id`, `nome`, `codice`? | Profilo. `id` = uid del dispositivo d'iscrizione (stabile anche dopo reset PIN). `codice` presente se creato da iscrizione. Get conoscendo la chiave; list solo admin. |
+| `dispositivi` | `uid` | `id`, `segreto` | Collega un dispositivo a un profilo (`segreto` = chiave del profilo). Leggibile solo dal proprio uid. |
 | `turni` | data `AAAA-MM-GG` | `id`, `nome` | Il turno. Leggibile dai dispositivi registrati. La chiave-data garantisce un turno al giorno. |
 | `admin` | `uid` | `chiave` | Dispositivi amministratori. Leggibile solo dal proprio uid. |
 
-Il `segreto` non compare mai in `turni`: nel calendario si vedono solo nomi e `id` pubblici.
-
 ### Regole di sicurezza
 
-- `persone/{segreto}`
-  - get: utente autenticato. list: mai.
-  - create: `id == request.auth.uid`, `nome` stringa 1–60 caratteri, `codice` uguale al codice
-    del circolo scritto nelle regole, solo campi `id`,`nome`,`codice`.
-  - update/delete: mai.
+- Nome valido: stringa ≤ 60 caratteri, almeno due parole separate da un solo spazio, senza spazi
+  iniziali/finali (`^[^ ]+( [^ ]+)+$`).
+- `persone/{chiave}`
+  - get: utente autenticato. list: solo admin.
+  - create (iscrizione): `id == request.auth.uid`, nome valido, `codice` uguale al codice del
+    circolo scritto nelle regole, solo campi `id`,`nome`,`codice`.
+  - create (reset admin): admin, nome valido, solo campi `id`,`nome`.
+  - delete: solo admin. update: mai.
 - `dispositivi/{uid}`
   - read: solo `request.auth.uid == uid`.
-  - create/update: solo `request.auth.uid == uid` e
-    `get(persone/segreto).data.id == request.resource.data.id`.
+  - create/update: solo `request.auth.uid == uid` e `get(persone/segreto).data.id == id`.
   - delete: mai.
 - `turni/{data}`
-  - read: solo se esiste `dispositivi/uid` (membro del circolo).
-  - create (solo se il documento non esiste — garantito da Firestore): `data` nel formato
-    `AAAA-MM-GG`; `id` e `nome` uguali a quelli della persona collegata al dispositivo
-    (`dispositivi/uid` → `persone/segreto`). Niente spacciarsi per altri.
+  - read: solo se esiste `dispositivi/uid`.
+  - create (solo se il giorno è libero): chiave `AAAA-MM-GG`; `id` e `nome` uguali a quelli del
+    profilo collegato al dispositivo.
+  - delete: admin, oppure `id` del **profilo ancora esistente** collegato al dispositivo uguale a
+    quello del turno (dopo un reset PIN i dispositivi col vecchio PIN non cancellano più nulla).
   - update: mai.
-  - delete: `resource.data.id` uguale all'`id` del proprio dispositivo, oppure `admin/uid` esiste.
 - `admin/{uid}`
-  - read: solo `request.auth.uid == uid`.
-  - create: `request.auth.uid == uid` e `chiave` uguale alla parola segreta scritta nelle
-    regole (non presente nella pagina).
+  - read: solo proprio uid. create: proprio uid e `chiave` uguale alla parola segreta nelle regole.
 
 Il blocco dei giorni passati è solo lato pagina (igiene dati, non sicurezza).
 
 ### Flusso all'apertura
 
 1. `signInAnonymously`.
-2. Se l'URL contiene `?admin=K` → prova a creare `admin/{uid}` con `chiave: K`.
-3. Se l'URL contiene `?io=S` → legge `persone/S`; se esiste scrive `dispositivi/{uid}` =
-   `{id, segreto: S}` (dopo conferma "Vuoi usare questo dispositivo come X?"). Se non esiste: "Link non valido".
-4. Altrimenti legge `dispositivi/{uid}`: se esiste → legge `persone/{segreto}` per il nome.
-5. Se non c'è profilo e l'URL non ha `?circolo=` → messaggio "apri il link del circolo" e stop.
-   Altrimenti chiede il nome, genera `segreto = crypto.randomUUID()`, crea
-   `persone/{segreto}` = `{id: uid, nome, codice}` e `dispositivi/{uid}` = `{id: uid, segreto}`.
-6. Toglie i parametri dall'URL (`history.replaceState`), mostra il calendario e si mette in ascolto su `turni`.
+2. Se l'URL contiene `?admin=K` e il dispositivo non è admin → prova a creare `admin/{uid}`.
+3. Legge `dispositivi/{uid}` → `persone/{segreto}`. Se entrambi esistono → calendario.
+   (Se il profilo non esiste più = PIN reimpostato → schermata di ingresso.)
+4. Schermata di ingresso: calcola la chiave da nome + PIN, legge `persone/{chiave}`:
+   trovato → scrive `dispositivi/{uid}` = `{id, segreto: chiave}`; non trovato → iscrizione
+   (se c'è `?circolo=`): crea `persone/{chiave}` = `{id: uid, nome, codice}` e `dispositivi/{uid}`.
+5. Toglie i parametri dall'URL, mostra il calendario, ascolta `turni`.
+
+### Reset PIN (admin)
+
+Nuova chiave da nome del socio + nuovo PIN → crea `persone/{nuova}` = `{id, nome}` (stesso `id`),
+poi cancella `persone/{vecchia}`. I turni restano del socio (stesso `id`). Tutti i suoi dispositivi
+tornano alla schermata di ingresso e rientrano col nuovo PIN.
+
+### Limiti (accettati)
+
+- Il PIN di 4 cifre protegge da errori e furbetti, non da un attacco automatico: un socio che vede
+  i nomi potrebbe provare i 10 000 PIN di un altro con uno script. Un estraneo dovrebbe indovinare
+  anche il nome esatto senza vederlo. Rimedio: l'admin reimposta il PIN.
+- Due omonimi con lo stesso PIN sarebbero la stessa persona (improbabile).
+- PIN dimenticato: lo reimposta l'admin.
 
 ### Errori
 
-- Due persone sullo stesso giorno nello stesso istante: Firestore accetta solo la prima
-  `create`; la seconda riceve `permission-denied` → "Questo giorno è appena stato preso."
-- Errori di rete: messaggio "Connessione assente, riprova."
-- Link personale non valido: messaggio e si prosegue come nuovo utente.
-- Codice del circolo sbagliato o cambiato: "Link del circolo non valido o scaduto: chiedi quello nuovo."
+- Due persone sullo stesso giorno nello stesso istante: vince la prima, la seconda vede
+  "Questo giorno è appena stato preso."
+- Errori di rete: "Connessione assente. Ricarica la pagina." / "Operazione non riuscita…"
 
 ## Test
 
-Un solo file `test/rules.test.mjs` (node:test + `@firebase/rules-unit-testing` +
-emulatore Firestore) che verifica:
+- `test/rules.test.mjs` (emulatore): iscrizione con/senza codice; nome di una parola rifiutato;
+  profilo con id altrui rifiutato; persone elencabile solo da admin; turni solo ai membri; un turno
+  al giorno; niente turni con id/nome altrui; cancella solo il proprietario; secondo dispositivo con
+  la chiave giusta = stessa persona; admin con chiave giusta; reset PIN (solo admin, turni conservati,
+  vecchi dispositivi tagliati fuori); persone/admin non modificabili.
+- `test/profilo.test.mjs`: normalizzazione, validazione, chiave indipendente da maiuscole/spazi.
+- `test/calendario.test.mjs`: griglia e date locali.
+- La pagina si verifica nel browser contro l'emulatore.
 
-- senza codice del circolo (o con codice sbagliato) non si crea il profilo;
-- chi non ha un dispositivo registrato non legge i turni;
-- non si può prenotare un giorno già preso;
-- non si può prenotare con `id`/`nome` di un altro;
-- non si può cancellare il turno di un altro;
-- l'admin (con chiave giusta) può cancellare; chiave sbagliata → niente admin;
-- un secondo dispositivo con il segreto giusto può cancellare i turni della persona;
-- `persone` non è elencabile.
-
-La pagina si verifica a mano nel browser contro l'emulatore.
-
-## Messa online (una tantum, a cura del proprietario)
+## Messa online (una tantum)
 
 1. Creare progetto Firebase (piano Spark), attivare Authentication → Anonimo e Firestore.
-2. Incollare `firestore.rules` nella console, sostituendo la parola segreta admin e il codice del circolo.
-3. Incollare la config web di Firebase in `index.html`.
-4. Creare repository GitHub pubblico, caricare `index.html`, attivare GitHub Pages.
-5. Aprire dal proprio telefono `…/?circolo=CODICE&admin=PAROLASEGRETA` (entra e diventa admin).
+2. Pubblicare le regole con parola admin e codice del circolo veri (lunghi e casuali), mai nel repo.
+3. Mettere la config web di Firebase in `index.html`.
+4. Repository GitHub pubblico con GitHub Pages.
+5. Aprire dal proprio telefono `…/?circolo=CODICE&admin=PAROLASEGRETA` (iscrizione + admin).
 6. Mandare `…/?circolo=CODICE` al gruppo del circolo.
