@@ -216,7 +216,7 @@
     </div>
     <p id="mia-posizione"></p>
     <ol id="elenco-classifica"></ol>
-    <p class="nota">Contano tutti i turni segnati, anche quelli ancora da fare.</p>
+    <p class="nota">Contano solo i turni già fatti: quelli in programma entrano il giorno dopo.</p>
   </section>
 </main>
 </div>
@@ -433,7 +433,7 @@ function disegnaProssimo() {
 }
 
 function disegnaClassifica() {
-  const righe = classifica(turni, periodo);
+  const righe = classifica(turni, oggi(), periodo);
   $('periodo-anno').setAttribute('aria-pressed', String(periodo !== null));
   $('periodo-sempre').setAttribute('aria-pressed', String(periodo === null));
   $('elenco-classifica').replaceChildren(...righe.map((r) => {
@@ -447,9 +447,9 @@ function disegnaClassifica() {
   }));
   const mia = righe.find((r) => r.id === io.id);
   const quando = periodo ? `nel ${periodo}` : 'finora';
-  $('mia-posizione').textContent = !righe.length ? `Nessun turno ${quando}. Il primo che si segna va in testa.`
+  $('mia-posizione').textContent = !righe.length ? `Nessun turno fatto ${quando}.`
     : mia ? `Sei al ${mia.posto}° posto su ${righe.length} con ${turniN(mia.turni)}.`
-      : `Non hai ancora turni ${quando}: segnati dal calendario per entrare in classifica.`;
+      : `Non hai ancora fatto turni ${quando}: segnati dal calendario per entrare in classifica.`;
 }
 
 function disegna() {

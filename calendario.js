@@ -17,12 +17,13 @@ export const giornoLeggibile = (s) =>
     weekday: 'long', day: 'numeric', month: 'long',
   });
 
-// Classifica turni per socio (per id, col nome più recente); anno 'AAAA' o null = da sempre.
+// Classifica turni fatti per socio (per id, col nome più recente): contano solo i giorni prima di `oggi`.
+// anno 'AAAA' o null = da sempre.
 // A pari turni stessa posizione (1, 2, 2, 4).
-export function classifica(turni, anno = null) {
+export function classifica(turni, oggi, anno = null) {
   const conta = new Map();
   for (const [data, t] of Object.entries(turni).sort()) {
-    if (anno && !data.startsWith(anno)) continue;
+    if (data >= oggi || (anno && !data.startsWith(anno))) continue;
     conta.set(t.id, { id: t.id, nome: t.nome, turni: (conta.get(t.id)?.turni ?? 0) + 1 });
   }
   const righe = [...conta.values()].sort((a, b) => b.turni - a.turni || a.nome.localeCompare(b.nome, 'it'));
