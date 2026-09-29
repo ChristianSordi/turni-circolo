@@ -1,67 +1,76 @@
-# Circolo Arci San Liberato — Turni
+# Turni — Circolo Arci San Liberato
 
-Agenda condivisa dei turni: si apre il link del circolo, la prima volta si scrivono nome e cognome
-e si sceglie un PIN di 4 cifre, poi si tocca un giorno libero per segnarsi. Nessun account.
+Agenda condivisa dei turni del circolo: https://christiansordi.github.io/turni-circolo/
 
-## Messa online (una volta sola)
+La prima volta si apre il link del circolo (quello del gruppo WhatsApp), si scrivono nome e cognome e
+si sceglie un PIN di 4 cifre. Poi basta toccare un giorno libero per segnarsi. Nessun account, niente
+da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da sempre.
 
-1. **Firebase** — https://console.firebase.google.com → "Crea progetto" (piano gratuito Spark,
-   Google Analytics non serve).
-2. **Authentication** → Inizia → Metodo di accesso → **Anonimo** → Attiva.
-3. **Firestore Database** → Crea database → località `eur3 (Europe)` → modalità produzione.
-4. Firestore → **Regole**: incolla il contenuto di `firestore.rules`, **sostituisci `CAMBIAMI`**
-   (parola segreta admin) e **`CODICE-CIRCOLO`** (codice del circolo) con valori tuoi — solo lì,
-   non nel repository → Pubblica.
-   **Usa valori lunghi e casuali, non parole:** chiunque può provare a indovinarli all'infinito, e
-   chi indovina la parola admin può cancellare tutti i turni. Generali così e salvali da parte:
-   `node -e "console.log(crypto.randomUUID())"` (uno per la parola admin, uno per il codice).
+## Per i soci
 
-   ⚠️ **Non usare mai `firebase deploy` dalla cartella del repository**: pubblicherebbe
-   `firestore.rules` con i segnaposto `CAMBIAMI` / `CODICE-CIRCOLO` visibili a tutti su GitHub.
-   Le regole vere stanno nella cartella locale `prod/` (ignorata da git, insieme a
-   `segreti.local.txt`). Dopo aver cambiato `firestore.rules`, riporta la modifica in
-   `prod/firestore.rules` mantenendo i valori veri, poi:
-   `cd prod && npx firebase deploy --only firestore:rules --project turni-sanliberato`.
-5. Impostazioni progetto → Le tue app → icona Web `</>` → registra l'app → copia i valori di
-   `firebaseConfig` in `index.html` (non sono segreti).
-6. **GitHub** — crea un repository pubblico, carica `index.html`, `calendario.js`, `profilo.js`, `logo.png` e `icona.png`
-   (o fai push di tutto) → Settings → Pages → Branch `main` / root → Save.
-7. Authentication → Impostazioni → **Domini autorizzati** → aggiungi `<tuo-utente>.github.io`.
-8. Dal tuo telefono apri una volta
-   `https://<tuo-utente>.github.io/<repo>/?circolo=<codice-circolo>&admin=<parola-segreta>`:
-   entri nel circolo e il telefono diventa amministratore.
-9. Manda `https://<tuo-utente>.github.io/<repo>/?circolo=<codice-circolo>` nel gruppo del circolo,
-   raccomandando di **ricordare il PIN** e di **aggiungere la pagina alla schermata Home**.
+- **Telefono nuovo o pagina che non ti riconosce più:** apri la pagina e scrivi gli stessi nome,
+  cognome e PIN: ritrovi i tuoi turni. Maiuscole e spazi non contano.
+- **PIN dimenticato:** chiedi all'amministratore di reimpostarlo.
 
-**Se il link del circolo finisce in mani sbagliate:** cambia il codice nelle regole (console →
-Firestore → Regole → Pubblica) e manda il link nuovo. Chi è già iscritto continua a funzionare
-(il codice serve solo per iscriversi).
+## Per l'amministratore
 
-## Uso
-
-- **Altro dispositivo, telefono nuovo, o il telefono "si è dimenticato":** si apre la pagina (anche
-  senza il link del circolo) e si scrivono lo stesso nome e cognome e lo stesso PIN: si ritrovano i
-  propri turni. Maiuscole e spazi non contano. (Su iPhone Safari cancella i dati dei siti non aperti
-  per 7 giorni: con il PIN non è un problema.)
-- **Classifica:** scheda in alto; conta i turni già fatti (fino a ieri) dell'anno o da sempre.
-- **Admin:** tocca un giorno occupato per togliere il turno di chiunque.
-- **PIN dimenticato:** l'admin, in fondo alla pagina, nell'elenco **Soci** tocca "Reimposta PIN"
-  accanto al nome, sceglie il nuovo PIN e lo comunica al socio. I turni restano suoi; il vecchio PIN
-  smette di funzionare su tutti i dispositivi.
-- **Limite:** un PIN di 4 cifre ferma errori e furbetti, non un attacco automatico deciso di un socio.
-  In caso di abusi: reimposta il PIN della vittima.
+- **Diventare admin:** apri una volta dal telefono il link del circolo con in più `&admin=<parola-segreta>`.
+- **Togliere un turno:** tocca il giorno occupato.
+- **Reimpostare un PIN:** in fondo al calendario, elenco **Soci** → "Reimposta PIN" → comunica il nuovo
+  PIN al socio. I turni restano suoi e il vecchio PIN smette di funzionare ovunque.
 - **Correggere un nome:** console Firebase → Firestore → `persone` → modifica `nome` (sempre nome e
-  cognome), **poi nella pagina tocca "Reimposta PIN"** per quel socio: la chiave del profilo dipende
-  dal nome, senza reset il socio non riuscirebbe più a rientrare col nome corretto. I turni già
-  segnati mantengono il vecchio nome: modificali in `turni`.
+  cognome), **poi** tocca "Reimposta PIN" per quel socio, altrimenti non riesce più a entrare. I turni
+  già segnati tengono il vecchio nome: correggili in `turni`.
+- **Cancellare i dati di un socio** (se lo chiede): console Firebase → Firestore → elimina il suo
+  documento in `persone` e i suoi giorni in `turni`.
+- **Link del circolo finito in mani sbagliate:** cambia il codice del circolo nelle regole (vedi sotto)
+  e manda il link nuovo nel gruppo. Chi è già iscritto non si accorge di nulla.
+
+Limite noto: un PIN di 4 cifre ferma errori e furbetti, non un attacco automatico deciso. In caso di
+abusi, reimposta il PIN della vittima.
+
+## Regole di sicurezza
+
+`firestore.rules` nel repository contiene i segnaposto `CAMBIAMI` (parola admin) e `CODICE-CIRCOLO`.
+Le regole vere, con i valori segreti, stanno solo nella cartella locale `prod/` (fuori da git, come
+`segreti.local.txt`).
+
+⚠️ **Mai `firebase deploy` dalla cartella del repository**: pubblicherebbe i segnaposto. Dopo aver
+cambiato `firestore.rules`, riporta la modifica in `prod/firestore.rules` mantenendo i valori veri, poi:
+
+```bash
+cd prod && npx firebase deploy --only firestore:rules --project turni-sanliberato
+```
+
+Parola admin e codice del circolo devono essere lunghi e casuali, non parole:
+`node -e "console.log(crypto.randomUUID())"`.
 
 ## Sviluppo
 
-Serve Java 21+ (emulatore Firebase). Porte: auth 9099, Firestore 8181.
+Il sito è statico (`index.html`, `calendario.js`, `profilo.js`, `logo.png`, `icona.png`) e si
+pubblica da solo con GitHub Pages a ogni push su `master`. I dati stanno su Firebase (Firestore in
+Europa, accesso anonimo).
+
+Serve Java 21+ per gli emulatori Firebase (auth 9099, Firestore 8181).
 
 ```bash
 npm install
-npm test                       # regole di sicurezza + calendario
+npm test                       # regole di sicurezza + calendario + profilo
 npm run emulatori              # emulatori auth + firestore
 python3 -m http.server 8000    # poi apri http://localhost:8000/?circolo=CODICE-CIRCOLO
 ```
+
+<details>
+<summary>Rifare tutto da zero (nuovo progetto Firebase)</summary>
+
+1. https://console.firebase.google.com → Crea progetto (piano gratuito Spark, senza Analytics).
+2. Authentication → Metodo di accesso → **Anonimo** → Attiva.
+3. Firestore Database → Crea database → `eur3 (Europe)` → modalità produzione.
+4. Firestore → Regole: incolla `firestore.rules` con i valori veri al posto dei segnaposto → Pubblica.
+5. Impostazioni progetto → Le tue app → Web `</>` → copia `firebaseConfig` in `index.html` (non è segreta).
+6. GitHub → Settings → Pages → Branch `master` / root → Save.
+7. Authentication → Impostazioni → Domini autorizzati → aggiungi `<utente>.github.io`.
+8. Diventa admin (vedi sopra) e manda nel gruppo `https://<utente>.github.io/<repo>/?circolo=<codice>`,
+   raccomandando di ricordare il PIN e di aggiungere la pagina alla schermata Home.
+
+</details>
