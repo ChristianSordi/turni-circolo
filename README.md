@@ -21,8 +21,10 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **Correggere un nome:** console Firebase → Firestore → `persone` → modifica `nome` (sempre nome e
   cognome), **poi** tocca "Reimposta PIN" per quel socio, altrimenti non riesce più a entrare. I turni
   già segnati tengono il vecchio nome: correggili in `turni`.
-- **Cancellare i dati di un socio** (se lo chiede): console Firebase → Firestore → elimina il suo
-  documento in `persone` e i suoi giorni in `turni`.
+- **Eliminare un socio** (se lo chiede, o se non fa più parte del circolo): elenco **Soci** → "Elimina".
+  Poi scegli se eliminare anche i suoi turni (tutti, anche quelli già fatti, quindi sparisce dalla
+  classifica) o tenerli in calendario e in classifica. Se chiede di cancellare i suoi dati, eliminali.
+  Da quel telefono non potrà più iscriversi: se deve tornare, lo fa da un altro browser o telefono.
 - **Link del circolo finito in mani sbagliate:** cambia il codice del circolo nelle regole (vedi sotto)
   e manda il link nuovo nel gruppo. Chi è già iscritto non si accorge di nulla.
 

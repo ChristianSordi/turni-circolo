@@ -155,10 +155,12 @@
   #soci { margin-top: 36px; }
   #soci h2 { margin: 0 0 8px; font: 800 1.4rem/1.2 var(--titoli); }
   #elenco-soci { list-style: none; margin: 0; padding: 0; }
-  #elenco-soci li { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  #elenco-soci li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
                     padding: 10px 0; border-bottom: 1px solid var(--linea); overflow-wrap: anywhere; }
   #elenco-soci button { flex: none; min-height: 44px; padding: 8px 14px; border: 2px solid var(--linea);
                         border-radius: 12px; background: var(--superficie); font-weight: 700; }
+  #elenco-soci .comandi { flex: none; display: flex; gap: 6px; }
+  #elenco-soci .elimina { color: var(--rosso-testo); }
 
   /* Finestra di conferma: foglio dal basso su telefono */
   dialog { width: min(100% - 24px, 440px); max-width: none; margin: auto auto 12px; padding: 22px 20px 20px;
@@ -278,7 +280,7 @@
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
-import { getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, setDoc, deleteDoc, collection, onSnapshot }
+import { getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, setDoc, deleteDoc, collection, onSnapshot, writeBatch }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { iso, griglia, giornoLeggibile, classifica } from './calendario.js';
 import { normalizzaNome, nomeValido, pinValido, chiave } from './profilo.js';
@@ -431,8 +433,15 @@ function disegnaSoci() {
   $('elenco-soci').replaceChildren(...soci.map((s) => {
     const b = el('button', '', 'Reimposta PIN');
     b.onclick = () => reimpostaPin(s);
+    const comandi = el('span', 'comandi');
+    comandi.append(b);
+    if (s.id !== io.id) { // l'admin non elimina se stesso
+      const x = el('button', 'elimina', 'Elimina');
+      x.onclick = () => eliminaSocio(s);
+      comandi.append(x);
+    }
     const li = el('li');
-    li.append(el('span', '', `${s.nome} (${turniN(quanti(s.id))})`), b);
+    li.append(el('span', '', `${s.nome} (${turniN(quanti(s.id))})`), comandi);
     return li;
   }));
   $('soci').hidden = false;
@@ -455,6 +464,31 @@ async function reimpostaPin(s) {
     await chiedi('Forse un omonimo ha già questo PIN: scegline un altro.', { titolo: 'PIN non reimpostato' });
   }
   if (s.segreto === io.segreto) return location.reload(); // PIN dell'admin stesso
+  await caricaSoci();
+}
+
+// Elimina il profilo e, se l'admin vuole, tutti i suoi turni (anche passati): tutto o niente.
+async function eliminaSocio(s) {
+  if (!await chiedi(`Elimini ${s.nome}? Non potrà più entrare. Non si torna indietro.`, {
+    titolo: 'Eliminare il socio?', ok: 'Elimina', annulla: 'Annulla',
+  })) return;
+  const giorni = Object.keys(turni).filter((d) => turni[d].id === s.id);
+  const n = giorni.length;
+  // Chiudere la finestra = tenere i turni: la scelta che non perde dati.
+  const via = n > 0 && await chiedi(n === 1
+    ? 'Ha 1 turno segnato. Lo elimino o resta in calendario e in classifica?'
+    : `Ha ${n} turni segnati. Li elimino o restano in calendario e in classifica?`, {
+    titolo: 'E i suoi turni?', ok: n === 1 ? 'Elimina il turno' : 'Elimina i turni', annulla: n === 1 ? 'Tienilo' : 'Tienili',
+  });
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'persone', s.segreto));
+  if (via) giorni.forEach((d) => batch.delete(doc(db, 'turni', d)));
+  try {
+    await batch.commit();
+    avvisoBreve(`${s.nome} eliminato`);
+  } catch {
+    await chiedi('Controlla la connessione e riprova.', { titolo: 'Socio non eliminato' });
+  }
   await caricaSoci();
 }
 
