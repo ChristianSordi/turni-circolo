@@ -1,10 +1,10 @@
-# Turni Circolo — Design
+# Turni Circolo Arci San Liberato — Design
 
 Data: 2026-09-29
 
 ## Obiettivo
 
-Agenda condivisa per i turni del circolo del paese. Ognuno, dal telefono o dal computer,
+Agenda condivisa per i turni del **Circolo Arci San Liberato**. Ognuno, dal telefono o dal computer,
 apre un link, vede i turni di tutti e si segna in un giorno libero. Nessun account.
 Utenti anche anziani: deve essere il più semplice possibile.
 
@@ -32,6 +32,7 @@ Utenti anche anziani: deve essere il più semplice possibile.
 ## Interfaccia
 
 Una sola pagina, in italiano, caratteri grandi, pensata per telefono.
+Intestazione e titolo della pagina: **"Circolo Arci San Liberato — Turni"**.
 
 1. **Primo accesso:** schermata con "Come ti chiami?" + campo + tasto "Salva".
 2. **Calendario mensile** con frecce ‹ › per cambiare mese.
