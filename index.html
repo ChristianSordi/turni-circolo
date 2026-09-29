@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Circolo Arci San Liberato — Turni</title>
+<style>
+  :root { --verde: #2e7d32; --verde-chiaro: #c8e6c9; --grigio: #e0e0e0; --testo: #222; --sfondo: #fff; }
+  * { box-sizing: border-box; }
+  body { max-width: 700px; margin: 0 auto; padding: 16px; font: 18px/1.4 system-ui, sans-serif; color: var(--testo); background: var(--sfondo); }
+  h1 { font-size: 1.4rem; text-align: center; margin: 0 0 12px; }
+  button { font: inherit; cursor: pointer; color: inherit; }
+  .mese { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .mese button { font-size: 1.6rem; padding: 4px 18px; border: 1px solid #999; border-radius: 8px; background: #fff; }
+  .mese h2 { margin: 0; font-size: 1.3rem; text-transform: capitalize; }
+  .griglia { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .intestazione { text-align: center; font-weight: bold; font-size: .9rem; }
+  .giorno { min-height: 64px; padding: 4px 2px; border: 1px solid #bbb; border-radius: 6px; background: #fff;
+            display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+  .giorno .num { font-weight: bold; }
+  .giorno .nome { font-size: .7rem; text-align: center; overflow-wrap: anywhere; }
+  .giorno.altro { background: var(--grigio); }
+  .giorno.mio { background: var(--verde-chiaro); border-color: var(--verde); }
+  .giorno.passato { opacity: .45; }
+  .giorno.oggi { outline: 3px solid #1565c0; }
+  input { font: inherit; width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #999; border-radius: 8px; }
+  .grande { display: block; width: 100%; margin-top: 10px; padding: 14px; border: 0; border-radius: 8px;
+            background: var(--verde); color: #fff; font-weight: bold; }
+  .link { margin-top: 24px; padding: 12px; border: 1px solid #ccc; border-radius: 8px; }
+  .link code { display: block; overflow-wrap: anywhere; font-size: .8rem; margin: 6px 0; }
+  .grigio { color: #666; font-size: .9rem; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<h1>Circolo Arci San Liberato — Turni</h1>
+<p id="stato" class="grigio">Caricamento…</p>
+
+<form id="benvenuto" hidden>
+  <label for="nome">Come ti chiami? (nome e cognome)</label>
+  <input id="nome" maxlength="60" autocomplete="name" required>
+  <button class="grande">Salva</button>
+</form>
+
+<main id="agenda" hidden>
+  <div class="mese">
+    <button id="prima" aria-label="Mese precedente">‹</button>
+    <h2 id="titolo-mese"></h2>
+    <button id="dopo" aria-label="Mese successivo">›</button>
+  </div>
+  <div id="griglia" class="griglia"></div>
+  <p class="grigio">Tocca un giorno libero per segnarti.</p>
+  <div class="link">
+    <strong>Il tuo link personale</strong>
+    <div class="grigio">Aprilo su un altro telefono o computer per usare lo stesso nome. Non darlo ad altri.</div>
+    <code id="mio-link"></code>
+    <button id="whatsapp" class="grande">Invia su WhatsApp</button>
+    <button id="copia" class="grande">Copia</button>
+  </div>
+</main>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
+import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot }
+  from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { iso, griglia, giornoLeggibile } from './calendario.js';
+
+// Config web dalla console Firebase (Impostazioni progetto → Le tue app). Non è segreta.
+const firebaseConfig = {
+  apiKey: 'INCOLLA-DALLA-CONSOLE',
+  authDomain: 'INCOLLA-DALLA-CONSOLE',
+  projectId: 'INCOLLA-DALLA-CONSOLE',
+  appId: 'INCOLLA-DALLA-CONSOLE',
+};
+
+const locale = ['localhost', '127.0.0.1'].includes(location.hostname);
+const app = initializeApp(locale ? { apiKey: 'demo', projectId: 'demo-turni' } : firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+if (locale) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8181);
+}
+
+const $ = (id) => document.getElementById(id);
+const oggi = iso(new Date());
+let io = null;       // { id, nome, segreto }
+let admin = false;
+let turni = {};      // 'AAAA-MM-GG' → { id, nome }
+let anno = new Date().getFullYear();
+let mese = new Date().getMonth();
+
+function el(tag, classe = '', testo = '') {
+  const e = document.createElement(tag);
+  if (classe) e.className = classe;
+  e.textContent = testo; // mai innerHTML: i nomi li scrivono gli utenti
+  return e;
+}
+
+async function profilo(uid) {
+  const url = new URL(location.href);
+  const chiaveAdmin = url.searchParams.get('admin');
+  const segretoLink = url.searchParams.get('io');
+
+  admin = (await getDoc(doc(db, 'admin', uid))).exists();
+  if (chiaveAdmin && !admin) {
+    try { await setDoc(doc(db, 'admin', uid), { chiave: chiaveAdmin }); admin = true; }
+    catch { alert('Chiave amministratore non valida.'); }
+  }
+
+  const mioDispositivo = await getDoc(doc(db, 'dispositivi', uid));
+  let segreto = mioDispositivo.exists() ? mioDispositivo.data().segreto : null;
+
+  if (segretoLink && segretoLink !== segreto) {
+    const p = await getDoc(doc(db, 'persone', segretoLink));
+    if (!p.exists()) alert('Link personale non valido.');
+    else if (confirm(`Questo link è di ${p.data().nome}. Vuoi usare questo dispositivo come ${p.data().nome}?`)) {
+      await setDoc(doc(db, 'dispositivi', uid), { id: p.data().id, segreto: segretoLink });
+      segreto = segretoLink;
+    }
+  }
+  if (!segreto) return null;
+  const p = await getDoc(doc(db, 'persone', segreto));
+  return { ...p.data(), segreto };
+}
+
+async function creaProfilo(uid, nome, codice) {
+  const segreto = crypto.randomUUID();
+  await setDoc(doc(db, 'persone', segreto), { id: uid, nome, codice });
+  await setDoc(doc(db, 'dispositivi', uid), { id: uid, segreto });
+  return { id: uid, nome, segreto };
+}
+
+function disegna() {
+  $('titolo-mese').textContent = new Date(anno, mese).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+  const g = $('griglia');
+  g.replaceChildren(...['L', 'M', 'M', 'G', 'V', 'S', 'D'].map((l) => el('div', 'intestazione', l)));
+  for (const data of griglia(anno, mese)) {
+    if (!data) { g.append(el('div')); continue; }
+    const t = turni[data];
+    const b = el('button', 'giorno');
+    b.append(el('span', 'num', String(Number(data.slice(8)))), el('span', 'nome', t ? t.nome : ''));
+    if (t) b.classList.add(t.id === io.id ? 'mio' : 'altro');
+    if (data < oggi) b.classList.add('passato');
+    if (data === oggi) b.classList.add('oggi');
+    b.onclick = () => tocca(data);
+    g.append(b);
+  }
+}
+
+function cambiaMese(delta) {
+  const d = new Date(anno, mese + delta);
+  anno = d.getFullYear();
+  mese = d.getMonth();
+  disegna();
+}
+
+async function tocca(data) {
+  const t = turni[data];
+  const quando = giornoLeggibile(data);
+  const passato = data < oggi;
+  try {
+    if (!t) {
+      if (!passato && confirm(`Vuoi segnarti per ${quando}?`)) {
+        await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome });
+      }
+    } else if (t.id === io.id && !passato) {
+      if (confirm(`Vuoi togliere il tuo turno di ${quando}?`)) await deleteDoc(doc(db, 'turni', data));
+    } else if (admin) {
+      if (confirm(`Togliere il turno di ${t.nome} di ${quando}?`)) await deleteDoc(doc(db, 'turni', data));
+    } else {
+      alert(`${quando}: turno di ${t.nome}`);
+    }
+  } catch (e) {
+    alert(e.code === 'permission-denied' && !t
+      ? 'Questo giorno è appena stato preso.'
+      : 'Operazione non riuscita. Controlla la connessione e riprova.');
+  }
+}
+
+function mostraAgenda() {
+  history.replaceState(null, '', location.pathname); // via ?circolo, ?io, ?admin dalla barra
+  $('stato').textContent = `Sei: ${io.nome}${admin ? ' (amministratore)' : ''}`;
+  $('stato').hidden = false;
+  $('agenda').hidden = false;
+  const link = `${location.origin}${location.pathname}?io=${io.segreto}`;
+  $('mio-link').textContent = link;
+  $('whatsapp').onclick = () =>
+    open(`https://wa.me/?text=${encodeURIComponent('Il mio link per i turni del Circolo Arci San Liberato: ' + link)}`);
+  $('copia').onclick = () => navigator.clipboard.writeText(link).then(() => alert('Link copiato.'));
+  $('prima').onclick = () => cambiaMese(-1);
+  $('dopo').onclick = () => cambiaMese(1);
+  disegna();
+  // ponytail: ascolta tutti i turni di sempre (~365 l'anno); filtrare per mese se diventano migliaia.
+  onSnapshot(collection(db, 'turni'), (snap) => {
+    turni = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
+    disegna();
+  }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; });
+}
+
+async function avvia() {
+  try {
+    const { user } = await signInAnonymously(auth);
+    io = await profilo(user.uid);
+    if (!io) {
+      const codice = new URL(location.href).searchParams.get('circolo');
+      if (!codice) {
+        $('stato').textContent = "Per usare l'agenda apri il link del circolo (lo trovi nel gruppo WhatsApp).";
+        return;
+      }
+      $('stato').hidden = true;
+      $('benvenuto').hidden = false;
+      const nome = await new Promise((ok) => {
+        $('benvenuto').onsubmit = (e) => {
+          e.preventDefault();
+          const n = $('nome').value.trim();
+          if (n) ok(n);
+        };
+      });
+      $('benvenuto').hidden = true;
+      try {
+        io = await creaProfilo(user.uid, nome, codice);
+      } catch (e) {
+        if (e.code !== 'permission-denied') throw e;
+        $('stato').hidden = false;
+        $('stato').textContent = 'Link del circolo non valido o scaduto: chiedi quello nuovo.';
+        return;
+      }
+    }
+    mostraAgenda();
+  } catch (e) {
+    console.error(e);
+    $('stato').hidden = false;
+    $('stato').textContent = 'Connessione assente. Ricarica la pagina.';
+  }
+}
+
+avvia();
+</script>
+</body>
+</html>
