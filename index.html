@@ -43,14 +43,16 @@
 <p id="stato" class="grigio">Caricamento…</p>
 
 <form id="ingresso" hidden>
-  <label for="nome">Nome e cognome</label>
-  <input id="nome" maxlength="60" autocomplete="name" autocorrect="off" spellcheck="false" placeholder="es. Mario Rossi">
+  <label for="nome">Nome</label>
+  <input id="nome" maxlength="30" autocomplete="given-name" autocorrect="off" spellcheck="false" placeholder="es. Mario">
+  <label for="cognome">Cognome</label>
+  <input id="cognome" maxlength="30" autocomplete="family-name" autocorrect="off" spellcheck="false" placeholder="es. Rossi">
   <label for="pin">PIN (4 cifre)</label>
   <input id="pin" inputmode="numeric" maxlength="4" autocomplete="off">
   <p class="avviso"><strong>Importante:</strong> ricorda assolutamente il tuo PIN!
     Ti servirà per rientrare se cambi telefono o se il telefono si dimentica di te.</p>
   <button class="grande">Entra</button>
-  <p class="grigio">Già iscritto? Scrivi lo stesso nome e PIN e ritrovi i tuoi turni.</p>
+  <p class="grigio">Già iscritto? Scrivi gli stessi nome, cognome e PIN e ritrovi i tuoi turni.</p>
 </form>
 
 <main id="agenda" hidden>
@@ -122,9 +124,13 @@ function modulo() {
   return new Promise((ok) => {
     $('ingresso').onsubmit = (e) => {
       e.preventDefault();
-      const nome = normalizzaNome($('nome').value);
+      // Nome + cognome uniti: stessa chiave di prima; maiuscole e spazi non contano (vedi profilo.js).
+      const [n, c] = [normalizzaNome($('nome').value), normalizzaNome($('cognome').value)];
+      const nome = `${n} ${c}`;
       const pin = $('pin').value.trim();
-      if (!nomeValido(nome)) return alert('Scrivi nome e cognome (es. Mario Rossi).');
+      if (!n) return alert('Scrivi il nome.');
+      if (!c) return alert('Scrivi il cognome.');
+      if (!nomeValido(nome)) return alert('Nome e cognome troppo lunghi.');
       if (!pinValido(pin)) return alert('Il PIN deve essere di 4 cifre.');
       ok({ nome, pin });
     };
