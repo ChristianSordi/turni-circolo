@@ -57,7 +57,7 @@ service cloud.firestore {
       allow delete: if isAdmin() || resource.data.id == persona(dispositivo().segreto).id;
     }
 
-    // Promemoria: l'iscrizione alle notifiche di questo telefono. La legge solo promemoria.mjs (admin SDK).
+    // Promemoria: l'iscrizione alle notifiche di questo telefono. La legge solo functions/index.js (admin SDK).
     match /promemoria/{uid} {
       allow read, delete: if request.auth.uid == uid;
       allow create, update: if request.auth.uid == uid
