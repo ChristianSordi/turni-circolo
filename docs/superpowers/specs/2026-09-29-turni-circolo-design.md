@@ -12,7 +12,7 @@ Utenti anche anziani: deve essere il più semplice possibile.
 
 - Un solo turno al giorno, una sola persona per turno.
 - Nessuna registrazione: al primo accesso si chiede solo "Come ti chiami?".
-- Chiunque vede tutti i turni (nome di chi lo fa).
+- Tutti i membri del circolo vedono tutti i turni (nome di chi lo fa). Chi non è membro non vede nulla.
 - Ci si può segnare solo in un giorno libero.
 - Si può togliere solo il proprio turno.
 - Giorni passati: sola consultazione (niente prenotazioni né cancellazioni).
@@ -22,7 +22,10 @@ Utenti anche anziani: deve essere il più semplice possibile.
 - Admin: un link segreto rende amministratore il dispositivo che lo apre; l'admin può
   togliere qualsiasi turno.
 - Tutto gratuito: GitHub Pages + Firebase (piano Spark).
-- Si distribuisce **un solo link pubblico** a tutti (es. gruppo WhatsApp).
+- Si distribuisce **un solo link del circolo** a tutti (es. gruppo WhatsApp), che contiene il
+  **codice del circolo**: `…/?circolo=CODICE`. Senza codice non si entra (blocco lato server).
+  Il codice vive solo nelle regole della console Firebase; se il link esce dal gruppo, si
+  cambia lì e chi è già entrato continua a funzionare.
 
 ## Fuori scope (v1)
 
@@ -34,7 +37,8 @@ Utenti anche anziani: deve essere il più semplice possibile.
 Una sola pagina, in italiano, caratteri grandi, pensata per telefono.
 Intestazione e titolo della pagina: **"Circolo Arci San Liberato — Turni"**.
 
-1. **Primo accesso:** schermata con "Come ti chiami?" + campo + tasto "Salva".
+1. **Primo accesso dal link del circolo:** schermata con "Come ti chiami?" + campo + tasto "Salva".
+   Senza codice nel link: "Per usare l'agenda apri il link del circolo (lo trovi nel gruppo WhatsApp)."
 2. **Calendario mensile** con frecce ‹ › per cambiare mese.
    - Giorno libero: bianco.
    - Giorno di un altro: grigio con il nome.
@@ -60,9 +64,9 @@ Intestazione e titolo della pagina: **"Circolo Arci San Liberato — Turni"**.
 
 | Raccolta | Chiave | Campi | Scopo |
 |---|---|---|---|
-| `persone` | `segreto` (casuale, 20+ caratteri) | `id`, `nome` | Profilo della persona. `id` = uid del primo dispositivo. Leggibile solo conoscendo il segreto (get sì, list no). |
+| `persone` | `segreto` (casuale, 20+ caratteri) | `id`, `nome`, `codice` | Profilo della persona. `id` = uid del primo dispositivo. Leggibile solo conoscendo il segreto (get sì, list no). |
 | `dispositivi` | `uid` | `id`, `segreto` | Collega un dispositivo a una persona. Leggibile solo dal proprio uid. |
-| `turni` | data `AAAA-MM-GG` | `id`, `nome` | Il turno. Leggibile da tutti. La chiave-data garantisce un turno al giorno. |
+| `turni` | data `AAAA-MM-GG` | `id`, `nome` | Il turno. Leggibile dai dispositivi registrati. La chiave-data garantisce un turno al giorno. |
 | `admin` | `uid` | `chiave` | Dispositivi amministratori. Leggibile solo dal proprio uid. |
 
 Il `segreto` non compare mai in `turni`: nel calendario si vedono solo nomi e `id` pubblici.
@@ -71,7 +75,8 @@ Il `segreto` non compare mai in `turni`: nel calendario si vedono solo nomi e `i
 
 - `persone/{segreto}`
   - get: utente autenticato. list: mai.
-  - create: `id == request.auth.uid`, `nome` stringa 1–60 caratteri, solo campi `id`,`nome`.
+  - create: `id == request.auth.uid`, `nome` stringa 1–60 caratteri, `codice` uguale al codice
+    del circolo scritto nelle regole, solo campi `id`,`nome`,`codice`.
   - update/delete: mai.
 - `dispositivi/{uid}`
   - read: solo `request.auth.uid == uid`.
@@ -79,7 +84,7 @@ Il `segreto` non compare mai in `turni`: nel calendario si vedono solo nomi e `i
     `get(persone/segreto).data.id == request.resource.data.id`.
   - delete: mai.
 - `turni/{data}`
-  - read: utente autenticato.
+  - read: solo se esiste `dispositivi/uid` (membro del circolo).
   - create (solo se il documento non esiste — garantito da Firestore): `data` nel formato
     `AAAA-MM-GG`; `id` e `nome` uguali a quelli della persona collegata al dispositivo
     (`dispositivi/uid` → `persone/segreto`). Niente spacciarsi per altri.
@@ -95,14 +100,14 @@ Il blocco dei giorni passati è solo lato pagina (igiene dati, non sicurezza).
 ### Flusso all'apertura
 
 1. `signInAnonymously`.
-2. Se l'URL contiene `?admin=K` → prova a creare `admin/{uid}` con `chiave: K`; poi toglie
-   il parametro dall'URL (`history.replaceState`).
+2. Se l'URL contiene `?admin=K` → prova a creare `admin/{uid}` con `chiave: K`.
 3. Se l'URL contiene `?io=S` → legge `persone/S`; se esiste scrive `dispositivi/{uid}` =
-   `{id, segreto: S}`; toglie il parametro dall'URL. Se non esiste: "Link non valido".
+   `{id, segreto: S}` (dopo conferma "Vuoi usare questo dispositivo come X?"). Se non esiste: "Link non valido".
 4. Altrimenti legge `dispositivi/{uid}`: se esiste → legge `persone/{segreto}` per il nome.
-5. Se non c'è profilo → chiede il nome, genera `segreto = crypto.randomUUID()`, crea
-   `persone/{segreto}` = `{id: uid, nome}` e `dispositivi/{uid}` = `{id: uid, segreto}`.
-6. Mostra il calendario e si mette in ascolto su `turni`.
+5. Se non c'è profilo e l'URL non ha `?circolo=` → messaggio "apri il link del circolo" e stop.
+   Altrimenti chiede il nome, genera `segreto = crypto.randomUUID()`, crea
+   `persone/{segreto}` = `{id: uid, nome, codice}` e `dispositivi/{uid}` = `{id: uid, segreto}`.
+6. Toglie i parametri dall'URL (`history.replaceState`), mostra il calendario e si mette in ascolto su `turni`.
 
 ### Errori
 
@@ -110,12 +115,15 @@ Il blocco dei giorni passati è solo lato pagina (igiene dati, non sicurezza).
   `create`; la seconda riceve `permission-denied` → "Questo giorno è appena stato preso."
 - Errori di rete: messaggio "Connessione assente, riprova."
 - Link personale non valido: messaggio e si prosegue come nuovo utente.
+- Codice del circolo sbagliato o cambiato: "Link del circolo non valido o scaduto: chiedi quello nuovo."
 
 ## Test
 
 Un solo file `test/rules.test.mjs` (node:test + `@firebase/rules-unit-testing` +
 emulatore Firestore) che verifica:
 
+- senza codice del circolo (o con codice sbagliato) non si crea il profilo;
+- chi non ha un dispositivo registrato non legge i turni;
 - non si può prenotare un giorno già preso;
 - non si può prenotare con `id`/`nome` di un altro;
 - non si può cancellare il turno di un altro;
@@ -128,8 +136,8 @@ La pagina si verifica a mano nel browser contro l'emulatore.
 ## Messa online (una tantum, a cura del proprietario)
 
 1. Creare progetto Firebase (piano Spark), attivare Authentication → Anonimo e Firestore.
-2. Incollare `firestore.rules` (con la propria parola segreta admin) nella console.
+2. Incollare `firestore.rules` nella console, sostituendo la parola segreta admin e il codice del circolo.
 3. Incollare la config web di Firebase in `index.html`.
 4. Creare repository GitHub pubblico, caricare `index.html`, attivare GitHub Pages.
-5. Aprire una volta `…/?admin=PAROLASEGRETA` dal proprio telefono.
-6. Mandare il link pubblico al gruppo del circolo.
+5. Aprire dal proprio telefono `…/?circolo=CODICE&admin=PAROLASEGRETA` (entra e diventa admin).
+6. Mandare `…/?circolo=CODICE` al gruppo del circolo.

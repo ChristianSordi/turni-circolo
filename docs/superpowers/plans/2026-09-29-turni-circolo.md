@@ -4,7 +4,7 @@
 
 **Goal:** Pagina web unica, senza account, dove i soci del Circolo Arci San Liberato si segnano per un turno al giorno.
 
-**Architecture:** `index.html` statico (GitHub Pages) che parla direttamente con Firestore tramite l'SDK Firebase da CDN. Firebase Anonymous Auth dà a ogni browser un `uid` invisibile; le regole Firestore (`firestore.rules`) sono l'unico backend e applicano tutte le garanzie (un turno al giorno, si cancella solo il proprio, admin). Il multi-dispositivo passa da un link personale `?io=<segreto>`.
+**Architecture:** `index.html` statico (GitHub Pages) che parla direttamente con Firestore tramite l'SDK Firebase da CDN. Firebase Anonymous Auth dà a ogni browser un `uid` invisibile; le regole Firestore (`firestore.rules`) sono l'unico backend e applicano tutte le garanzie (un turno al giorno, si cancella solo il proprio, admin). Il multi-dispositivo passa da un link personale `?io=<segreto>`; l'accesso al circolo da un codice nel link `?circolo=<codice>`.
 
 **Tech Stack:** HTML/CSS/JS vanilla (ES modules), Firebase JS SDK 12.19.0 da `https://www.gstatic.com/firebasejs/12.19.0/`, Firestore + Anonymous Auth (piano Spark). Test: `node:test`, `@firebase/rules-unit-testing` 5.x, `firebase-tools` 15.x (emulatore, richiede **Java 21+**).
 
@@ -20,6 +20,8 @@
 - Giorni passati: nessuna prenotazione né cancellazione (tranne admin).
 - Il `segreto` personale non deve mai comparire nei documenti `turni`.
 - Parola segreta admin nel file del repo = `CAMBIAMI` (segnaposto); quella vera si mette solo nella console Firebase, mai nel repo.
+- Codice del circolo nel file del repo = `CODICE-CIRCOLO` (segnaposto); stesso trattamento. Link del circolo: `…/?circolo=<codice>`.
+- Senza codice del circolo non si crea un profilo e non si leggono i turni (blocco nelle regole).
 - Nessun build step, nessun framework per la pagina; `npm` solo per i test.
 - I nomi degli utenti si mostrano sempre con `textContent`, mai `innerHTML`.
 
@@ -42,7 +44,7 @@
 
 **Interfaces:**
 - Produces: modello dati usato dalla pagina (Task 3):
-  - `persone/{segreto}` = `{ id: string, nome: string }` — `id` = uid del primo dispositivo
+  - `persone/{segreto}` = `{ id: string, nome: string, codice: string }` — `id` = uid del primo dispositivo, `codice` = codice del circolo
   - `dispositivi/{uid}` = `{ id: string, segreto: string }`
   - `turni/{AAAA-MM-GG}` = `{ id: string, nome: string }`
   - `admin/{uid}` = `{ chiave: string }`
@@ -128,6 +130,7 @@ import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/fi
 const SEGRETO_ANNA = 'segreto-anna-0123456789';
 const SEGRETO_BRUNO = 'segreto-bruno-0123456789';
 const GIORNO = '2026-10-12';
+const CODICE = 'CODICE-CIRCOLO';
 let env;
 
 before(async () => {
@@ -141,9 +144,9 @@ beforeEach(async () => {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'persone', SEGRETO_ANNA), { id: 'anna', nome: 'Anna' });
+    await setDoc(doc(db, 'persone', SEGRETO_ANNA), { id: 'anna', nome: 'Anna', codice: CODICE });
     await setDoc(doc(db, 'dispositivi', 'anna'), { id: 'anna', segreto: SEGRETO_ANNA });
-    await setDoc(doc(db, 'persone', SEGRETO_BRUNO), { id: 'bruno', nome: 'Bruno' });
+    await setDoc(doc(db, 'persone', SEGRETO_BRUNO), { id: 'bruno', nome: 'Bruno', codice: CODICE });
     await setDoc(doc(db, 'dispositivi', 'bruno'), { id: 'bruno', segreto: SEGRETO_BRUNO });
   });
 });
@@ -153,17 +156,22 @@ const segnaAnna = () => setDoc(doc(db('anna'), 'turni', GIORNO), { id: 'anna', n
 
 test('nuovo utente crea il suo profilo e collega il dispositivo', async () => {
   const s = 'segreto-carla-0123456789';
-  await assertSucceeds(setDoc(doc(db('carla'), 'persone', s), { id: 'carla', nome: 'Carla' }));
+  await assertSucceeds(setDoc(doc(db('carla'), 'persone', s), { id: 'carla', nome: 'Carla', codice: CODICE }));
   await assertSucceeds(setDoc(doc(db('carla'), 'dispositivi', 'carla'), { id: 'carla', segreto: s }));
 });
 
+test('senza codice del circolo giusto non si crea il profilo', async () => {
+  await assertFails(setDoc(doc(db('carla'), 'persone', 'segreto-senza-0123456789'), { id: 'carla', nome: 'Carla' }));
+  await assertFails(setDoc(doc(db('carla'), 'persone', 'segreto-errato-0123456789'), { id: 'carla', nome: 'Carla', codice: 'vecchio' }));
+});
+
 test('non si crea un profilo con id di un altro', async () => {
-  await assertFails(setDoc(doc(db('carla'), 'persone', 'segreto-finto-0123456789'), { id: 'anna', nome: 'Anna' }));
+  await assertFails(setDoc(doc(db('carla'), 'persone', 'segreto-finto-0123456789'), { id: 'anna', nome: 'Anna', codice: CODICE }));
 });
 
 test('nome vuoto o oltre 60 caratteri rifiutato', async () => {
-  await assertFails(setDoc(doc(db('carla'), 'persone', 'segreto-vuoto-0123456789'), { id: 'carla', nome: '' }));
-  await assertFails(setDoc(doc(db('carla'), 'persone', 'segreto-lungo-0123456789'), { id: 'carla', nome: 'x'.repeat(61) }));
+  await assertFails(setDoc(doc(db('carla'), 'persone', 'segreto-vuoto-0123456789'), { id: 'carla', nome: '', codice: CODICE }));
+  await assertFails(setDoc(doc(db('carla'), 'persone', 'segreto-lungo-0123456789'), { id: 'carla', nome: 'x'.repeat(61), codice: CODICE }));
 });
 
 test('persone non è elencabile ma si legge conoscendo il segreto', async () => {
@@ -194,9 +202,10 @@ test('chiave turno deve essere una data AAAA-MM-GG', async () => {
   await assertFails(setDoc(doc(db('anna'), 'turni', 'domani'), { id: 'anna', nome: 'Anna' }));
 });
 
-test('tutti leggono i turni', async () => {
+test('i membri leggono i turni, un estraneo no', async () => {
   await segnaAnna();
   await assertSucceeds(getDoc(doc(db('bruno'), 'turni', GIORNO)));
+  await assertFails(getDocs(collection(db('estraneo'), 'turni')));
 });
 
 test('solo il proprietario cancella il suo turno', async () => {
@@ -253,7 +262,9 @@ service cloud.firestore {
       allow get: if request.auth != null;
       allow create: if request.auth != null
         && segreto.size() >= 20
-        && request.resource.data.keys().hasOnly(['id', 'nome'])
+        && request.resource.data.keys().hasOnly(['id', 'nome', 'codice'])
+        // Sostituisci CODICE-CIRCOLO SOLO nella console Firebase, mai nel repo.
+        && request.resource.data.codice == 'CODICE-CIRCOLO'
         && request.resource.data.id == request.auth.uid
         && request.resource.data.nome is string
         && request.resource.data.nome.size() >= 1
@@ -270,7 +281,7 @@ service cloud.firestore {
 
     // Un documento per giorno: "create" riesce solo se il giorno è libero.
     match /turni/{data} {
-      allow read: if request.auth != null;
+      allow read: if exists(/databases/$(database)/documents/dispositivi/$(request.auth.uid));
       allow create: if data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && request.resource.data.keys().hasOnly(['id', 'nome'])
         && request.resource.data.id == persona(dispositivo().segreto).id
@@ -292,7 +303,7 @@ service cloud.firestore {
 - [ ] **Step 7: Esegui i test e verifica che passino**
 
 Run: `npm test`
-Expected: PASS, 13 test, 0 falliti.
+Expected: PASS, 14 test, 0 falliti.
 
 - [ ] **Step 8: Commit**
 
@@ -386,7 +397,7 @@ export const giornoLeggibile = (s) =>
 - [ ] **Step 4: Verifica che passi**
 
 Run: `node --test test/calendario.test.mjs` poi `npm test`
-Expected: PASS (5 test calendario; con `npm test` 18 in totale).
+Expected: PASS (5 test calendario; con `npm test` 19 in totale).
 
 - [ ] **Step 5: Commit**
 
@@ -513,11 +524,6 @@ async function profilo(uid) {
   const url = new URL(location.href);
   const chiaveAdmin = url.searchParams.get('admin');
   const segretoLink = url.searchParams.get('io');
-  if (chiaveAdmin || segretoLink) {
-    url.searchParams.delete('admin');
-    url.searchParams.delete('io');
-    history.replaceState(null, '', url);
-  }
 
   admin = (await getDoc(doc(db, 'admin', uid))).exists();
   if (chiaveAdmin && !admin) {
@@ -541,9 +547,9 @@ async function profilo(uid) {
   return { ...p.data(), segreto };
 }
 
-async function creaProfilo(uid, nome) {
+async function creaProfilo(uid, nome, codice) {
   const segreto = crypto.randomUUID();
-  await setDoc(doc(db, 'persone', segreto), { id: uid, nome });
+  await setDoc(doc(db, 'persone', segreto), { id: uid, nome, codice });
   await setDoc(doc(db, 'dispositivi', uid), { id: uid, segreto });
   return { id: uid, nome, segreto };
 }
@@ -596,6 +602,7 @@ async function tocca(data) {
 }
 
 function mostraAgenda() {
+  history.replaceState(null, '', location.pathname); // via ?circolo, ?io, ?admin dalla barra
   $('stato').textContent = `Sei: ${io.nome}${admin ? ' (amministratore)' : ''}`;
   $('stato').hidden = false;
   $('agenda').hidden = false;
@@ -619,6 +626,11 @@ async function avvia() {
     const { user } = await signInAnonymously(auth);
     io = await profilo(user.uid);
     if (!io) {
+      const codice = new URL(location.href).searchParams.get('circolo');
+      if (!codice) {
+        $('stato').textContent = "Per usare l'agenda apri il link del circolo (lo trovi nel gruppo WhatsApp).";
+        return;
+      }
       $('stato').hidden = true;
       $('benvenuto').hidden = false;
       const nome = await new Promise((ok) => {
@@ -629,7 +641,14 @@ async function avvia() {
         };
       });
       $('benvenuto').hidden = true;
-      io = await creaProfilo(user.uid, nome);
+      try {
+        io = await creaProfilo(user.uid, nome, codice);
+      } catch (e) {
+        if (e.code !== 'permission-denied') throw e;
+        $('stato').hidden = false;
+        $('stato').textContent = 'Link del circolo non valido o scaduto: chiedi quello nuovo.';
+        return;
+      }
     }
     mostraAgenda();
   } catch (e) {
@@ -655,10 +674,11 @@ python3 -m http.server 8000        # terminale 2
 
 - [ ] **Step 3: Verifica manuale nel browser** (`http://localhost:8000`)
 
-Usa una finestra normale (utente A) e una finestra in incognito (utente B).
+Usa una finestra normale (utente A) e una finestra in incognito (utente B). Apri sempre `http://localhost:8000/?circolo=CODICE-CIRCOLO` salvo dove indicato.
 
-1. A: compare "Come ti chiami?". Solo spazi + Salva → non succede niente. Scrivi `Anna Rossi` → compare il calendario del mese corrente, oggi bordato di blu, "Sei: Anna Rossi".
-2. A: ricarica → nessuna domanda, stesso nome.
+0. Nuova finestra incognito su `http://localhost:8000/` (senza codice) → solo "Per usare l'agenda apri il link del circolo…", niente calendario. Con `?circolo=sbagliato` → dopo il nome: "Link del circolo non valido o scaduto…".
+1. A: compare "Come ti chiami?". Solo spazi + Salva → non succede niente. Scrivi `Anna Rossi` → compare il calendario del mese corrente, oggi bordato di blu, "Sei: Anna Rossi"; l'URL non contiene più `?circolo=`.
+2. A: ricarica (ora senza codice nell'URL) → nessuna domanda, stesso nome, calendario visibile.
 3. A: tocca un giorno futuro libero → conferma → diventa verde con "Anna Rossi".
 4. B: nome `<img src=x onerror=alert(1)>` → nessun alert parte; il testo compare letteralmente. B vede il giorno di Anna grigio; toccandolo compare "…: turno di Anna Rossi".
 5. B: prenota un altro giorno; A lo vede apparire **senza ricaricare**.
@@ -689,7 +709,7 @@ git commit -m "Pagina turni: calendario, prenotazione, link personale, admin"
 ````markdown
 # Circolo Arci San Liberato — Turni
 
-Agenda condivisa dei turni: si apre il link, si scrive il proprio nome la prima volta,
+Agenda condivisa dei turni: si apre il link del circolo, si scrive il proprio nome la prima volta,
 si tocca un giorno libero per segnarsi. Nessun account.
 
 ## Messa online (una volta sola)
@@ -699,15 +719,20 @@ si tocca un giorno libero per segnarsi. Nessun account.
 2. **Authentication** → Inizia → Metodo di accesso → **Anonimo** → Attiva.
 3. **Firestore Database** → Crea database → località `eur3 (Europe)` → modalità produzione.
 4. Firestore → **Regole**: incolla il contenuto di `firestore.rules`, **sostituisci `CAMBIAMI`**
-   con una parola segreta tua (solo lì, non nel repository) → Pubblica.
+   (parola segreta admin) e **`CODICE-CIRCOLO`** (codice del circolo, es. `sanliberato-7k2m`)
+   con valori tuoi — solo lì, non nel repository → Pubblica.
 5. Impostazioni progetto → Le tue app → icona Web `</>` → registra l'app → copia i valori di
    `firebaseConfig` in `index.html` (non sono segreti).
 6. **GitHub** — crea un repository pubblico, carica `index.html` e `calendario.js`
    (o fai push di tutto) → Settings → Pages → Branch `main` / root → Save.
 7. Authentication → Impostazioni → **Domini autorizzati** → aggiungi `<tuo-utente>.github.io`.
-8. Dal tuo telefono apri una volta `https://<tuo-utente>.github.io/<repo>/?admin=<parola-segreta>`:
-   il telefono diventa amministratore.
-9. Manda `https://<tuo-utente>.github.io/<repo>/` nel gruppo del circolo.
+8. Dal tuo telefono apri una volta
+   `https://<tuo-utente>.github.io/<repo>/?circolo=<codice-circolo>&admin=<parola-segreta>`:
+   entri nel circolo e il telefono diventa amministratore.
+9. Manda `https://<tuo-utente>.github.io/<repo>/?circolo=<codice-circolo>` nel gruppo del circolo.
+
+**Se il link del circolo finisce in mani sbagliate:** cambia il codice nelle regole (console →
+Firestore → Regole → Pubblica) e manda il link nuovo. Chi è già entrato continua a funzionare.
 
 ## Uso
 
@@ -725,7 +750,7 @@ Serve Java 21+ (emulatore Firebase).
 npm install
 npm test                       # regole di sicurezza + calendario
 npm run emulatori              # emulatori auth + firestore
-python3 -m http.server 8000    # poi apri http://localhost:8000
+python3 -m http.server 8000    # poi apri http://localhost:8000/?circolo=CODICE-CIRCOLO
 ```
 ````
 
