@@ -21,7 +21,7 @@ e si sceglie un PIN di 4 cifre, poi si tocca un giorno libero per segnarsi. Ness
    nella console.
 5. Impostazioni progetto → Le tue app → icona Web `</>` → registra l'app → copia i valori di
    `firebaseConfig` in `index.html` (non sono segreti).
-6. **GitHub** — crea un repository pubblico, carica `index.html` e `calendario.js`
+6. **GitHub** — crea un repository pubblico, carica `index.html`, `calendario.js` e `profilo.js`
    (o fai push di tutto) → Settings → Pages → Branch `main` / root → Save.
 7. Authentication → Impostazioni → **Domini autorizzati** → aggiungi `<tuo-utente>.github.io`.
 8. Dal tuo telefono apri una volta
@@ -46,8 +46,10 @@ Firestore → Regole → Pubblica) e manda il link nuovo. Chi è già iscritto c
   smette di funzionare su tutti i dispositivi.
 - **Limite:** un PIN di 4 cifre ferma errori e furbetti, non un attacco automatico deciso di un socio.
   In caso di abusi: reimposta il PIN della vittima.
-- **Correggere un nome:** console Firebase → Firestore → `persone` → modifica `nome`
-  (i turni già segnati mantengono il vecchio nome: modificali in `turni`).
+- **Correggere un nome:** console Firebase → Firestore → `persone` → modifica `nome` (sempre nome e
+  cognome), **poi nella pagina tocca "Reimposta PIN"** per quel socio: la chiave del profilo dipende
+  dal nome, senza reset il socio non riuscirebbe più a rientrare col nome corretto. I turni già
+  segnati mantengono il vecchio nome: modificali in `turni`.
 
 ## Sviluppo
 

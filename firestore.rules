@@ -27,7 +27,9 @@ service cloud.firestore {
           // Iscrizione. Sostituisci CODICE-CIRCOLO SOLO nella console Firebase, mai nel repo.
           (request.resource.data.keys().hasOnly(['id', 'nome', 'codice'])
             && request.resource.data.codice == 'CODICE-CIRCOLO'
-            && request.resource.data.id == request.auth.uid)
+            && request.resource.data.id == request.auth.uid
+            // Un dispositivo già collegato non si reiscrive: dopo un reset PIN non si riprende l'identità.
+            && !exists(/databases/$(database)/documents/dispositivi/$(request.auth.uid)))
           // Reset PIN: l'admin ricrea il profilo con la nuova chiave e lo stesso id.
           || (isAdmin()
             && request.resource.data.keys().hasOnly(['id', 'nome'])
@@ -45,7 +47,8 @@ service cloud.firestore {
 
     // Un documento per giorno: "create" riesce solo se il giorno è libero.
     match /turni/{data} {
-      allow read: if exists(/databases/$(database)/documents/dispositivi/$(request.auth.uid));
+      // Solo dispositivi collegati a un profilo ancora esistente (dopo un reset PIN il vecchio non legge più).
+      allow read: if exists(/databases/$(database)/documents/persone/$(dispositivo().segreto));
       allow create: if data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && request.resource.data.keys().hasOnly(['id', 'nome'])
         && request.resource.data.id == persona(dispositivo().segreto).id

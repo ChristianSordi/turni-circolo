@@ -140,3 +140,20 @@ test('profili e admin non modificabili', async () => {
   await diventaAdmin('capo');
   await assertFails(setDoc(doc(db('capo'), 'admin', 'capo'), { chiave: 'CAMBIAMI' }));
 });
+
+test('dopo il reset il dispositivo d\'iscrizione non si riprende l\'identità iscrivendosi di nuovo', async () => {
+  await diventaAdmin('capo');
+  await setDoc(doc(db('capo'), 'persone', NUOVA_ANNA), { id: 'anna', nome: 'Anna Rossi' });
+  await deleteDoc(doc(db('capo'), 'persone', CHIAVE_ANNA));
+  await assertFails(setDoc(doc(db('anna'), 'persone', CHIAVE_ANNA), { id: 'anna', nome: 'Anna Rossi', codice: CODICE }));
+  await assertFails(setDoc(doc(db('anna'), 'persone', 'chiave-anna-altra-0123456789'), { id: 'anna', nome: 'Anna Rossi', codice: CODICE }));
+});
+
+test('dopo il reset il vecchio dispositivo non legge più i turni', async () => {
+  await segnaAnna();
+  await diventaAdmin('capo');
+  await setDoc(doc(db('capo'), 'persone', NUOVA_ANNA), { id: 'anna', nome: 'Anna Rossi' });
+  await deleteDoc(doc(db('capo'), 'persone', CHIAVE_ANNA));
+  await assertFails(getDocs(collection(db('anna'), 'turni')));
+  await assertSucceeds(getDocs(collection(db('bruno'), 'turni')));
+});

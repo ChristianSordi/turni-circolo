@@ -27,3 +27,8 @@ test('chiave = SHA-256 di nome minuscolo normalizzato + PIN', async () => {
   assert.notEqual(await chiave('Mario Rossi', '1235'), attesa);
   assert.notEqual(await chiave('Mario Rossa', '1234'), attesa);
 });
+
+test('apostrofo tipografico (iPhone) = apostrofo normale', async () => {
+  assert.equal(normalizzaNome('Maria D’Amico'), "Maria D'Amico");
+  assert.equal(await chiave('Maria D’Amico', '1234'), await chiave("Maria D'Amico", '1234'));
+});
