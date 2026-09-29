@@ -40,6 +40,7 @@
   <label for="nome">Come ti chiami? (nome e cognome)</label>
   <input id="nome" maxlength="60" autocomplete="name" required>
   <button class="grande">Salva</button>
+  <p class="grigio">Sei già iscritto? Apri il tuo link personale (quello che ti sei mandato su WhatsApp).</p>
 </form>
 
 <main id="agenda" hidden>
@@ -52,7 +53,9 @@
   <p class="grigio">Tocca un giorno libero per segnarti.</p>
   <div class="link">
     <strong>Il tuo link personale</strong>
-    <div class="grigio">Aprilo su un altro telefono o computer per usare lo stesso nome. Non darlo ad altri.</div>
+    <div class="grigio">Mandatelo subito su WhatsApp: se cambi telefono o il browser si dimentica di te, aprilo e ritrovi i tuoi turni.
+      Funziona anche su un altro telefono o computer. Non darlo ad altri.<br>
+      Consiglio: aggiungi questa pagina alla schermata Home.</div>
     <code id="mio-link"></code>
     <button id="whatsapp" class="grande">Invia su WhatsApp</button>
     <button id="copia" class="grande">Copia</button>
@@ -84,7 +87,7 @@ if (locale) {
 }
 
 const $ = (id) => document.getElementById(id);
-const oggi = iso(new Date());
+const oggi = () => iso(new Date()); // ricalcolato: la pagina può restare aperta per giorni
 let io = null;       // { id, nome, segreto }
 let admin = false;
 let turni = {};      // 'AAAA-MM-GG' → { id, nome }
@@ -142,8 +145,8 @@ function disegna() {
     const b = el('button', 'giorno');
     b.append(el('span', 'num', String(Number(data.slice(8)))), el('span', 'nome', t ? t.nome : ''));
     if (t) b.classList.add(t.id === io.id ? 'mio' : 'altro');
-    if (data < oggi) b.classList.add('passato');
-    if (data === oggi) b.classList.add('oggi');
+    if (data < oggi()) b.classList.add('passato');
+    if (data === oggi()) b.classList.add('oggi');
     b.onclick = () => tocca(data);
     g.append(b);
   }
@@ -159,7 +162,7 @@ function cambiaMese(delta) {
 async function tocca(data) {
   const t = turni[data];
   const quando = giornoLeggibile(data);
-  const passato = data < oggi;
+  const passato = data < oggi();
   try {
     if (!t) {
       if (!passato && confirm(`Vuoi segnarti per ${quando}?`)) {
