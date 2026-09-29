@@ -1,0 +1,14 @@
+{
+  "name": "turni-circolo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-turni \"node --test\"",
+    "emulatori": "firebase emulators:start --only auth,firestore --project demo-turni"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.32.0"
+  }
+}

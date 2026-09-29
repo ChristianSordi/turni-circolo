@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function dispositivo() {
+      return get(/databases/$(database)/documents/dispositivi/$(request.auth.uid)).data;
+    }
+    function persona(segreto) {
+      return get(/databases/$(database)/documents/persone/$(segreto)).data;
+    }
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/admin/$(request.auth.uid));
+    }
+
+    // Profilo: la chiave è il segreto personale. Si legge solo conoscendolo, mai in elenco.
+    match /persone/{segreto} {
+      allow get: if request.auth != null;
+      allow create: if request.auth != null
+        && segreto.size() >= 20
+        && request.resource.data.keys().hasOnly(['id', 'nome', 'codice'])
+        // Sostituisci CODICE-CIRCOLO SOLO nella console Firebase, mai nel repo.
+        && request.resource.data.codice == 'CODICE-CIRCOLO'
+        && request.resource.data.id == request.auth.uid
+        && request.resource.data.nome is string
+        && request.resource.data.nome.size() >= 1
+        && request.resource.data.nome.size() <= 60;
+    }
+
+    // Collega un dispositivo (uid anonimo) a una persona: serve il suo segreto.
+    match /dispositivi/{uid} {
+      allow read: if request.auth.uid == uid;
+      allow create, update: if request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['id', 'segreto'])
+        && persona(request.resource.data.segreto).id == request.resource.data.id;
+    }
+
+    // Un documento per giorno: "create" riesce solo se il giorno è libero.
+    match /turni/{data} {
+      allow read: if exists(/databases/$(database)/documents/dispositivi/$(request.auth.uid));
+      allow create: if data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.keys().hasOnly(['id', 'nome'])
+        && request.resource.data.id == persona(dispositivo().segreto).id
+        && request.resource.data.nome == persona(dispositivo().segreto).nome;
+      allow delete: if isAdmin() || resource.data.id == dispositivo().id;
+    }
+
+    // Sostituisci CAMBIAMI con la parola segreta SOLO nella console Firebase, mai nel repo.
+    match /admin/{uid} {
+      allow read: if request.auth.uid == uid;
+      allow create: if request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['chiave'])
+        && request.resource.data.chiave == 'CAMBIAMI';
+    }
+  }
+}
