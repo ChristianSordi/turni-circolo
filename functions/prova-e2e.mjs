@@ -69,4 +69,25 @@ await db.doc(`turni/${iso(domani)}`).set({ nome: 'Senza id' });
 await promemoria.run({});
 assert.deepEqual(inviate, []);
 
+// Storico iniziale: una riga "segna" (importata) per ogni turno che non ha già un "segna"; rilanciabile.
+const { execFileSync } = await import('node:child_process');
+const { mkdtempSync, readdirSync, readFileSync } = await import('node:fs');
+const { tmpdir } = await import('node:os');
+const cartella = mkdtempSync(`${tmpdir()}/backup-`);
+await db.doc('turni/2026-11-07').set(BRUNO);
+await db.doc(`turni/${G}`).set(ANNA); // G ha già un "segna" dalla funzione: non va importato di nuovo
+const importa = () => execFileSync('node', ['functions/importa-storico.js'], { env: { ...process.env, CARTELLA_BACKUP: cartella }, stdio: 'inherit' });
+importa();
+const imp = (await db.doc('attivita/import-2026-11-07').get());
+assert.equal(imp.data().importato, true);
+assert.equal(imp.data().azione, 'segna');
+assert.equal(imp.data().quando.toMillis(), (await db.doc('turni/2026-11-07').get()).createTime.toMillis());
+assert.equal((await db.doc(`attivita/import-${G}`).get()).exists, false);
+assert.equal((await db.doc(`attivita/import-${iso(domani)}`).get()).exists, false); // turno senza id: saltato
+const quante = (await db.collection('attivita').get()).size;
+importa();
+assert.equal((await db.collection('attivita').get()).size, quante);
+const [file] = readdirSync(cartella).filter((f) => f.startsWith('backup-'));
+assert.ok(JSON.parse(readFileSync(`${cartella}/${file}`, 'utf8')).turni['2026-11-07']);
+
 console.log('e2e funzioni: tutto ok');
