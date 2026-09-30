@@ -17,7 +17,10 @@ const vapid = () => webpush.setVapidDetails('https://christiansordi.github.io/tu
 // Notifica ai telefoni con i promemoria attivi: di un socio (a) o di tutti tranne uno (tranne).
 // Telefono non più suo (reset PIN, socio eliminato) o promemoria disattivati: l'iscrizione si cancella.
 async function invia(db, { a, tranne, titolo, testo }) {
-  const iscritti = a ? db.collection('promemoria').where('id', '==', a) : db.collection('promemoria');
+  // Senza un socio (a) o un escluso (tranne) validi non si avvisa nessuno: mai a tutti per un id mancante.
+  const valido = (x) => typeof x === 'string' && x !== '';
+  if (!valido(a) && !valido(tranne)) return 0;
+  const iscritti = valido(a) ? db.collection('promemoria').where('id', '==', a) : db.collection('promemoria');
   let inviati = 0;
   for (const p of (await iscritti.get()).docs) {
     const { id, endpoint, p256dh, auth } = p.data();

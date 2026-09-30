@@ -63,4 +63,10 @@ assert.deepEqual(inviate.map((i) => i.endpoint), ['https://push.prova/anna']);
 assert.equal(inviate[0].titolo, 'Domani hai il turno al circolo');
 assert.equal((await db.doc('promemoria/vecchio').get()).exists, false);
 
+// Turno di domani senza id (modificato a mano dalla console): non arriva nessun avviso, a nessuno.
+inviate.length = 0;
+await db.doc(`turni/${iso(domani)}`).set({ nome: 'Senza id' });
+await promemoria.run({});
+assert.deepEqual(inviate, []);
+
 console.log('e2e funzioni: tutto ok');
