@@ -55,6 +55,20 @@ service cloud.firestore {
         && request.resource.data.nome == persona(dispositivo().segreto).nome;
       // Profilo ancora esistente: dopo un reset PIN il vecchio dispositivo non cancella più.
       allow delete: if isAdmin() || resource.data.id == persona(dispositivo().segreto).id;
+      // "Cerco un sostituto": il titolare mette o toglie cedo; un altro socio prende il turno che lo cerca.
+      // Solo fino alle 22:00 UTC del giorno (23 d'inverno, mezzanotte d'estate): niente turni presi a posteriori.
+      allow update: if request.time < timestamp.date(int(data.split('-')[0]), int(data.split('-')[1]), int(data.split('-')[2])) + duration.value(22, 'h')
+        && (
+          (resource.data.id == persona(dispositivo().segreto).id
+            && request.resource.data.keys().hasOnly(['id', 'nome', 'cedo'])
+            && request.resource.data.id == resource.data.id
+            && request.resource.data.nome == resource.data.nome
+            && request.resource.data.get('cedo', true) == true)
+          || (resource.data.get('cedo', false) == true
+            && request.resource.data.keys().hasOnly(['id', 'nome'])
+            && request.resource.data.id == persona(dispositivo().segreto).id
+            && request.resource.data.nome == persona(dispositivo().segreto).nome)
+        );
     }
 
     // Promemoria: l'iscrizione alle notifiche di questo telefono. La legge solo functions/index.js (admin SDK).
@@ -79,6 +93,24 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['chiusura', 'apre', 'chiude'])
         && (request.resource.data.chiusura == null || request.resource.data.chiusura in [0, 1, 2, 3, 4, 5, 6])
         && ora(request.resource.data.apre) && ora(request.resource.data.chiude);
+    }
+
+    // Storico delle azioni sui turni: lo scrive solo functions/index.js (admin SDK), lo legge solo l'admin.
+    match /attivita/{id} {
+      allow read: if isAdmin();
+    }
+
+    // Quante volte ogni socio apre l'app: ognuno aggiunge 1 al proprio, lo legge solo l'admin.
+    function accessoValido(socio, n) {
+      return socio == persona(dispositivo().segreto).id
+        && request.resource.data.keys().hasOnly(['n', 'ultimo'])
+        && request.resource.data.n == n
+        && request.resource.data.ultimo == request.time;
+    }
+    match /accessi/{socio} {
+      allow read: if isAdmin();
+      allow create: if accessoValido(socio, 1);
+      allow update: if accessoValido(socio, resource.data.n + 1);
     }
 
     // Sostituisci CAMBIAMI con la parola segreta SOLO nella console Firebase, mai nel repo.

@@ -1,7 +1,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, increment, serverTimestamp } from 'firebase/firestore';
 
 const CHIAVE_ANNA = 'chiave-anna-0123456789';
 const CHIAVE_BRUNO = 'chiave-bruno-0123456789';
@@ -184,4 +184,72 @@ test('promemoria: ognuno iscrive solo il proprio telefono, a nome suo', async ()
   await assertFails(setDoc(doc(db('anna'), 'promemoria', 'anna'), { ...sub, endpoint: 'http://push.example/abc' }));
   await assertFails(setDoc(doc(db('anna'), 'promemoria', 'anna'), { ...sub, extra: 1 }));
   await assertSucceeds(deleteDoc(doc(db('anna'), 'promemoria', 'anna')));
+});
+
+const NOMI = { anna: 'Anna Rossi', bruno: 'Bruno Bianchi' };
+const traGiorni = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const FUTURO = traGiorni(10);
+const PASSATO = '2020-01-06';
+const semina = (giorno, dati) => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'turni', giorno), dati));
+const scrivi = (uid, giorno, dati) => setDoc(doc(db(uid), 'turni', giorno), dati);
+
+test('cerca sostituto: solo chi ha il turno, e cambia solo "cedo"', async () => {
+  await semina(FUTURO, { id: 'anna', nome: NOMI.anna });
+  await assertFails(scrivi('bruno', FUTURO, { id: 'anna', nome: NOMI.anna, cedo: true }));
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: 'Anna Rossi Due', cedo: true }));
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cedo: false }));
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cedo: true, altro: 1 }));
+  await assertSucceeds(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cedo: true }));
+  await assertSucceeds(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna })); // ci ripensa
+});
+
+test('prendere: solo un turno che cerca sostituto, solo per sé, e uno solo vince', async () => {
+  await semina(FUTURO, { id: 'anna', nome: NOMI.anna });
+  await assertFails(scrivi('bruno', FUTURO, { id: 'bruno', nome: NOMI.bruno })); // non cerca sostituto
+  await semina(FUTURO, { id: 'anna', nome: NOMI.anna, cedo: true });
+  await assertFails(scrivi('bruno', FUTURO, { id: 'anna', nome: NOMI.bruno }));
+  await assertFails(scrivi('bruno', FUTURO, { id: 'bruno', nome: NOMI.anna }));
+  await assertFails(scrivi('bruno', FUTURO, { id: 'bruno', nome: NOMI.bruno, cedo: true }));
+  await assertFails(scrivi('carla', FUTURO, { id: 'carla', nome: 'Carla Verdi' })); // senza profilo
+  await assertSucceeds(scrivi('bruno', FUTURO, { id: 'bruno', nome: NOMI.bruno }));
+  // Il secondo arriva tardi: il turno non cerca più sostituto.
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna }));
+});
+
+test('giorni passati: niente cerca sostituto né prendere', async () => {
+  await semina(PASSATO, { id: 'anna', nome: NOMI.anna });
+  await assertFails(scrivi('anna', PASSATO, { id: 'anna', nome: NOMI.anna, cedo: true }));
+  await semina(PASSATO, { id: 'anna', nome: NOMI.anna, cedo: true });
+  await assertFails(scrivi('bruno', PASSATO, { id: 'bruno', nome: NOMI.bruno }));
+});
+
+test('un turno che cerca sostituto si toglie come gli altri', async () => {
+  await semina(FUTURO, { id: 'anna', nome: NOMI.anna, cedo: true });
+  await assertFails(deleteDoc(doc(db('bruno'), 'turni', FUTURO)));
+  await assertSucceeds(deleteDoc(doc(db('anna'), 'turni', FUTURO)));
+});
+
+test('accessi: solo il proprio, solo +1 con l\'ora del server, lo legge solo l\'admin', async () => {
+  const accesso = (uid, socio, dati) => setDoc(doc(db(uid), 'accessi', socio), dati, { merge: true });
+  const piuUno = { n: increment(1), ultimo: serverTimestamp() };
+  await assertSucceeds(accesso('anna', 'anna', piuUno));
+  await assertSucceeds(accesso('anna', 'anna', piuUno));
+  await assertFails(accesso('anna', 'anna', { n: 10, ultimo: serverTimestamp() }));
+  await assertFails(accesso('anna', 'anna', { n: increment(1), ultimo: new Date(2020, 0, 1) }));
+  await assertFails(accesso('anna', 'bruno', piuUno));
+  await assertFails(accesso('carla', 'carla', piuUno)); // senza profilo
+  await assertFails(getDoc(doc(db('anna'), 'accessi', 'anna')));
+  await diventaAdmin('capo');
+  const tutti = await assertSucceeds(getDocs(collection(db('capo'), 'accessi')));
+  if (tutti.docs[0].data().n !== 2) throw new Error(`n = ${tutti.docs[0].data().n}, atteso 2`);
+});
+
+test('storico: lo legge solo l\'admin, nessuno lo scrive dall\'app', async () => {
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'attivita', 'x'), { socio: 'anna', nome: NOMI.anna, azione: 'segna', giorno: FUTURO }));
+  await assertFails(getDocs(query(collection(db('anna'), 'attivita'), where('socio', '==', 'anna'))));
+  await assertFails(setDoc(doc(db('anna'), 'attivita', 'y'), { socio: 'anna' }));
+  await diventaAdmin('capo');
+  await assertSucceeds(getDocs(query(collection(db('capo'), 'attivita'), where('socio', '==', 'anna'))));
+  await assertFails(setDoc(doc(db('capo'), 'attivita', 'y'), { socio: 'anna' }));
 });
