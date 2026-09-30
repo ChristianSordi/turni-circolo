@@ -745,7 +745,7 @@ function mostraAgenda() {
     disegna();
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; $('stato').hidden = false; });
   if (admin) {
-    import('./admin.js?v=2') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
+    import('./admin.js?v=3') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
       .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }); })
       .catch(() => chiedi('Pannello admin non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
   }

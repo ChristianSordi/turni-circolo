@@ -1,7 +1,7 @@
 // Pannello dell'amministratore: elenco soci (turni, accessi, storico, reset PIN, elimina), orari del circolo
 // e la scheda Attività con le azioni di tutti.
 // Lo carica index.html solo per l'admin. Stessi URL di Firebase di index.html: altrimenti db non è riconosciuto.
-import { doc, getDocs, setDoc, deleteDoc, collection, query, where, orderBy, limit, writeBatch }
+import { doc, getDocs, onSnapshot, setDoc, deleteDoc, collection, query, where, orderBy, limit, writeBatch }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { chiave, pinValido } from './profilo.js';
 // ?v=: GitHub Pages lascia i file in cache 10 minuti; senza, un telefono può unire questo admin.js nuovo a un
@@ -13,12 +13,8 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
   let accessi = {};   // id socio → { n, ultimo }
 
   async function caricaSoci() {
-    const [persone, conti] = await Promise.all([
-      getDocs(collection(db, 'persone')),
-      getDocs(collection(db, 'accessi')).catch(() => null), // contatore assente: l'elenco si vede lo stesso
-    ]);
+    const persone = await getDocs(collection(db, 'persone'));
     soci = persone.docs.map((d) => ({ ...d.data(), segreto: d.id })).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-    accessi = Object.fromEntries(conti?.docs.map((d) => [d.id, d.data()]) ?? []);
     disegnaSoci();
   }
 
@@ -164,5 +160,10 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
   $('form-orari').onsubmit = salvaOrari;
   $('impostazioni').hidden = false;
   caricaSoci();
+  // Accessi dal vivo: l'app dell'admin resta aperta per ore (iPhone), letti una volta sola restano vecchi.
+  onSnapshot(collection(db, 'accessi'), (snap) => {
+    accessi = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
+    disegnaSoci();
+  }, () => {}); // contatore non leggibile: l'elenco si vede lo stesso
   return { disegnaSoci };
 }
