@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "firebase emulators:exec --only firestore --project demo-turni \"node --test\"",
+    "e2e": "cp calendario.js functions/ && firebase emulators:exec --only firestore --project demo-turni \"node functions/prova-e2e.mjs\"",
     "emulatori": "firebase emulators:start --only auth,firestore --project demo-turni"
   },
   "devDependencies": {
