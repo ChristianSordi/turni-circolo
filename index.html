@@ -40,6 +40,7 @@
     --superficie: #fff;
     --su-inchiostro: #fff;
     --rosso-testo: #d42a20;
+    --arancio: #c25e00; --arancio-tenue: #ffe6cc; --arancio-testo: #8a4300;
     --titoli: 'Baloo 2', system-ui, sans-serif;
   }
   /* Scuro: segue il sistema, salvo scelta "Chiaro"; oppure scelto a mano. Stessi valori nei due blocchi. */
@@ -48,12 +49,14 @@
       color-scheme: dark; --sfondo: #1c1a1a; --superficie: #272424; --inchiostro: #f3efee; --su-inchiostro: #1c1a1a;
       --rosso-testo: #ff8277; --rosso-tenue: #3b2220; --preso: #363232; --linea: #4d4747; --grigio: #b3abaa;
       --blu: #8db3ff; --giallo-tenue: #3a321a;
+      --arancio: #f28c1e; --arancio-tenue: #4a2e12; --arancio-testo: #ffb366;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark; --sfondo: #1c1a1a; --superficie: #272424; --inchiostro: #f3efee; --su-inchiostro: #1c1a1a;
     --rosso-testo: #ff8277; --rosso-tenue: #3b2220; --preso: #363232; --linea: #4d4747; --grigio: #b3abaa;
     --blu: #8db3ff; --giallo-tenue: #3a321a;
+    --arancio: #f28c1e; --arancio-tenue: #4a2e12; --arancio-testo: #ffb366;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--sfondo); color: var(--inchiostro);
@@ -96,6 +99,7 @@
   .grande:disabled { opacity: .6; cursor: wait; }
   .secondario { display: block; width: 100%; min-height: 52px; padding: 10px 16px; border: 2px solid var(--linea);
                 border-radius: 14px; background: var(--superficie); font-weight: 700; }
+  .secondario.pericolo { color: var(--rosso-testo); }
 
   /* Ingresso */
   #ingresso label { display: block; margin-top: 18px; font-weight: 700; }
@@ -142,6 +146,10 @@
   .giorno.passato { opacity: .5; border-style: solid; }
   .giorno.oggi .num { background: var(--inchiostro); color: var(--su-inchiostro); }
   .giorno.mio.oggi .num { background: #fff; color: var(--rosso); }
+  /* Cercasi sostituto: arancione e con la scritta, per chi non distingue i colori */
+  .giorno.cerca { border: 2px solid var(--arancio); background: var(--arancio-tenue); color: var(--inchiostro); font-weight: 400; }
+  .giorno.cerca .nome { font-size: .6rem; font-weight: 700; color: var(--arancio-testo); }
+  .giorno.cerca.oggi .num { background: var(--inchiostro); color: var(--su-inchiostro); }
   /* Giorno di chiusura: la serranda abbassata */
   .giorno.chiuso, .legenda .l-chiuso { border: 2px solid var(--linea); color: var(--grigio); cursor: default;
     background: repeating-linear-gradient(var(--superficie) 0 5px, var(--linea) 5px 7px); }
@@ -153,6 +161,7 @@
   .legenda .l-mio { background: var(--rosso); }
   .legenda .l-altro { background: var(--preso); }
   .legenda .l-libero { border: 2px dashed var(--linea); }
+  .legenda .l-cerca { border: 2px solid var(--arancio); background: var(--arancio-tenue); }
 
   /* Classifica */
   .periodo { display: inline-grid; grid-auto-flow: column; gap: 4px; padding: 4px; border-radius: 99px;
@@ -204,6 +213,7 @@
   dialog h2 { margin: 0 0 4px; font: 800 1.5rem/1.15 var(--titoli); }
   dialog h2::first-letter { text-transform: uppercase; }
   dialog p { margin: 0 0 16px; }
+  #d-testo { white-space: pre-line; }
   #d-input { display: block; width: 100%; margin-bottom: 16px; padding: 12px; border: 2px solid var(--inchiostro);
              border-radius: 12px; background: transparent; font: 800 1.6rem/1 var(--titoli); letter-spacing: .5em; }
   .azioni { display: grid; gap: 8px; }
@@ -278,6 +288,7 @@
       <li><i class="l-mio"></i>Tuo turno</li>
       <li><i class="l-altro"></i>Già preso</li>
       <li><i class="l-libero"></i>Libero: tocca per segnarti</li>
+      <li><i class="l-cerca"></i>Cercasi sostituto: tocca per prenderlo</li>
       <li id="legenda-chiuso" hidden><i class="l-chiuso"></i>Circolo chiuso</li>
     </ul>
     <section id="promemoria" class="promemoria" aria-live="polite">
@@ -318,7 +329,8 @@
   </section>
 </main>
 <p class="nota privacy">Nome, cognome e turni sono usati solo per organizzare i turni del Circolo e sono visibili
-  solo ai soci. Per farli cancellare, chiedi al Circolo.</p>
+  solo ai soci. L'amministratore vede anche chi ha segnato, tolto o passato un turno e quante volte ciascuno
+  apre l'app. Per farli cancellare, chiedi al Circolo.</p>
 </div>
 
 <dialog id="dialogo">
@@ -328,6 +340,7 @@
     <input id="d-input" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Nuovo PIN" hidden>
     <div class="azioni">
       <button id="d-ok" class="grande" value="ok"></button>
+      <button id="d-altro" class="secondario pericolo" value="altro" hidden></button>
       <button id="d-annulla" class="secondario" value="annulla"></button>
     </div>
   </form>
@@ -337,7 +350,7 @@
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
-import { getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, setDoc, deleteDoc, collection, onSnapshot, writeBatch }
+import { getFirestore, connectFirestoreEmulator, doc, getDoc, getDocs, setDoc, deleteDoc, collection, onSnapshot, writeBatch, increment, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia } from './calendario.js';
 import { normalizzaNome, nomeValido, pinValido, chiave } from './profilo.js';
@@ -381,8 +394,9 @@ function el(tag, classe = '', testo = '') {
 const turniN = (n) => `${n} ${n === 1 ? 'turno' : 'turni'}`;
 const breve = (nome) => { const [n, c] = nome.split(' '); return c ? `${n}\n${c[0]}.` : n; }; // "Mario R." nelle caselle
 
-// Al posto di alert/confirm/prompt: finestra con pulsanti grandi. Risolve true/false, o il testo se c'è input.
-function chiedi(testo, { titolo = '', ok = 'Ho capito', annulla = null, input = false } = {}) {
+// Al posto di alert/confirm/prompt: finestra con pulsanti grandi, uno sotto l'altro.
+// Risolve true (ok), 'altro' (terzo pulsante), false; o il testo se c'è input.
+function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = null, input = false } = {}) {
   const d = $('dialogo');
   $('d-titolo').textContent = titolo;
   $('d-titolo').hidden = !titolo;
@@ -390,6 +404,8 @@ function chiedi(testo, { titolo = '', ok = 'Ho capito', annulla = null, input = 
   $('d-input').hidden = !input;
   $('d-input').value = '';
   $('d-ok').textContent = ok;
+  $('d-altro').textContent = altro ?? '';
+  $('d-altro').hidden = !altro;
   $('d-annulla').textContent = annulla ?? '';
   $('d-annulla').hidden = !annulla;
   d.returnValue = '';
@@ -397,7 +413,7 @@ function chiedi(testo, { titolo = '', ok = 'Ho capito', annulla = null, input = 
   return new Promise((fine) => {
     d.onclose = () => {
       const si = d.returnValue === 'ok';
-      fine(input ? (si ? $('d-input').value.trim() : undefined) : si);
+      fine(input ? (si ? $('d-input').value.trim() : undefined) : d.returnValue === 'altro' ? 'altro' : si);
     };
   });
 }
@@ -562,7 +578,9 @@ function disegnaProssimo() {
   }
   const [primo] = miei;
   p.replaceChildren(el('span', '', 'Il tuo prossimo turno'), el('strong', '', giornoLeggibile(primo)),
-    el('span', 'nota', miei.length === 2 ? 'e un altro in programma' : miei.length > 2 ? `e altri ${miei.length - 1} in programma` : ''));
+    el('span', 'nota', [turni[primo].cedo && 'Stai cercando un sostituto',
+      miei.length === 2 ? 'e un altro in programma' : miei.length > 2 ? `e altri ${miei.length - 1} in programma` : '',
+    ].filter(Boolean).join(' · ')));
   p.onclick = () => { anno = Number(primo.slice(0, 4)); mese = primo.slice(5, 7) - 1; disegna(); };
 }
 
@@ -597,9 +615,12 @@ function disegna() {
     const t = turni[data];
     const b = el('button', 'giorno');
     const serranda = !t && chiuso(data, orari.chiusura); // un turno già segnato resta visibile
-    b.append(el('span', 'num', String(Number(data.slice(8)))), el('span', 'nome', t ? breve(t.nome) : serranda ? 'chiuso' : ''));
-    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}` : serranda ? 'circolo chiuso' : 'libero'}`);
+    const cerca = t?.cedo && data >= oggi(); // passato il giorno non si prende più
+    b.append(el('span', 'num', String(Number(data.slice(8)))),
+      el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : '') : serranda ? 'chiuso' : ''));
+    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${cerca ? ', cerca un sostituto' : ''}` : serranda ? 'circolo chiuso' : 'libero'}`);
     if (t) b.classList.add(t.id === io.id ? 'mio' : 'altro');
+    if (cerca) b.classList.add('cerca');
     if (serranda) b.classList.add('chiuso');
     if (data < oggi()) b.classList.add('passato');
     if (data === oggi()) b.classList.add('oggi');
@@ -701,9 +722,33 @@ async function tocca(data) {
         avvisoBreve(`Turno segnato: ${quando}`);
       }
     } else if (t.id === io.id && !passato) {
-      if (await chiedi('Vuoi togliere il tuo turno?', { titolo: quando, ok: 'Togli il turno', annulla: 'Tienilo' })) {
+      const scelta = await chiedi(t.cedo
+        ? 'Stai cercando un sostituto: il turno resta tuo finché qualcuno non lo prende.'
+        : 'È il tuo turno. Se non puoi più farlo, cerca un sostituto.', {
+        titolo: quando, ok: t.cedo ? 'Lo faccio io' : 'Cerco un sostituto', altro: 'Togli il turno', annulla: 'Annulla',
+      });
+      if (scelta === 'altro') {
         await deleteDoc(doc(db, 'turni', data));
         avvisoBreve(`Turno tolto: ${quando}`);
+      } else if (scelta && t.cedo) {
+        await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome });
+        avvisoBreve('Fatto: il turno resta tuo');
+      } else if (scelta && await chiedi('Il turno resta tuo finché qualcuno non lo prende. Lo vedono tutti in calendario e chi ha i promemoria attivi riceve un avviso. Se nessuno lo prende, il turno è ancora tuo.', {
+        titolo: 'Cerchi un sostituto?', ok: 'Sì, avvisa tutti', annulla: 'Annulla',
+      })) {
+        await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome, cedo: true });
+        avvisoBreve('Abbiamo avvisato tutti: quando qualcuno lo prende, ti arriva un avviso');
+      }
+    } else if (t.cedo && !passato) {
+      const scelta = await chiedi(`${t.nome} cerca un sostituto. Se lo prendi, il turno diventa tuo.`, {
+        titolo: quando, ok: 'Prendo io il turno', altro: admin ? 'Togli il turno' : null, annulla: 'Annulla',
+      });
+      if (scelta === 'altro') {
+        await deleteDoc(doc(db, 'turni', data));
+        avvisoBreve(`Turno tolto: ${quando}`);
+      } else if (scelta) {
+        await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome });
+        avvisoBreve(`Fatto: il turno di ${quando} ora è tuo`);
       }
     } else if (admin) {
       if (await chiedi(`Vuoi togliere il turno di ${t.nome}?`, { titolo: quando, ok: 'Togli il turno', annulla: 'Annulla' })) {
@@ -714,10 +759,21 @@ async function tocca(data) {
       await chiedi(`Turno di ${t.nome}`, { titolo: quando });
     }
   } catch (e) {
-    await chiedi(e.code === 'permission-denied' && !t
+    await chiedi(e.code === 'permission-denied' && (!t || t.cedo)
       ? 'Qualcuno ha preso questo giorno un attimo prima di te.'
       : 'Controlla la connessione e riprova.', { titolo: 'Operazione non riuscita' });
   }
+}
+
+// Contatore accessi (lo vede solo l'admin): all'apertura e al ritorno dopo almeno 30 minuti fuori dall'app.
+// Su iPhone l'app resta in memoria: senza il ritorno in primo piano si conterebbe troppo poco. Errori ignorati.
+const contaAccesso = () =>
+  setDoc(doc(db, 'accessi', io.id), { n: increment(1), ultimo: serverTimestamp() }, { merge: true }).catch(() => {});
+let nascostaDa = 0;
+function contaAlRitorno() {
+  if (document.hidden) { nascostaDa = Date.now(); return; }
+  if (nascostaDa && Date.now() - nascostaDa >= 30 * 60 * 1000) contaAccesso();
+  nascostaDa = 0;
 }
 
 function mostraAgenda() {
@@ -746,6 +802,8 @@ function mostraAgenda() {
   navigator.serviceWorker?.register('sw.js');
   disegnaPromemoria().catch(console.error);
   $('form-orari').onsubmit = salvaOrari;
+  contaAccesso();
+  document.addEventListener('visibilitychange', contaAlRitorno);
 }
 
 // Orari in testata per tutti, anche prima di entrare; l'admin li cambia dal suo pannello.
