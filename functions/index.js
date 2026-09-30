@@ -53,7 +53,8 @@ export const promemoria = onSchedule({ ...MINIMO, schedule: 'every day 09:00', t
 
 // Storico: una riga per ogni turno segnato, tolto, in cerca di sostituto o passato a un altro.
 // L'id è quello dell'evento: se Google lo consegna due volte, la riga si sovrascrive.
-export const attivita = onDocumentWrittenWithAuthContext({ ...MINIMO, document: 'turni/{giorno}' }, async (event) => {
+// maxInstances 3: raffiche come "Elimina + i suoi turni" scatenano molti eventi insieme; scala a zero, resta gratis.
+export const attivita = onDocumentWrittenWithAuthContext({ ...MINIMO, maxInstances: 3, document: 'turni/{giorno}' }, async (event) => {
   const db = getFirestore();
   const prima = event.data.before.data() ?? null;
   const dopo = event.data.after.data() ?? null;

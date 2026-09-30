@@ -124,6 +124,7 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN }
   }
 
   $('form-orari').onsubmit = salvaOrari;
+  $('impostazioni').hidden = false;
   caricaSoci();
   return { disegnaSoci };
 }

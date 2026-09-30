@@ -661,12 +661,12 @@ async function tocca(data) {
         await deleteDoc(doc(db, 'turni', data));
         avvisoBreve(`Turno tolto: ${quando}`);
       } else if (scelta && t.cedo) {
-        await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome });
+        await setDoc(doc(db, 'turni', data), { id: io.id, nome: t.nome });
         avvisoBreve('Fatto: il turno resta tuo');
       } else if (scelta && await chiedi('Il turno resta tuo finché qualcuno non lo prende. Lo vedono tutti in calendario e chi ha i promemoria attivi riceve un avviso. Se nessuno lo prende, il turno è ancora tuo.', {
         titolo: 'Cerchi un sostituto?', ok: 'Sì, avvisa tutti', annulla: 'Annulla',
       })) {
-        await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome, cedo: true });
+        await setDoc(doc(db, 'turni', data), { id: io.id, nome: t.nome, cedo: true });
         avvisoBreve('Fatto: ora tutti vedono che cerchi un sostituto');
       }
     } else if (t.cedo && !passato) {
@@ -689,8 +689,9 @@ async function tocca(data) {
       await chiedi(`Turno di ${t.nome}`, { titolo: quando });
     }
   } catch (e) {
-    await chiedi(e.code === 'permission-denied' && (!t || t.cedo)
-      ? 'Qualcuno ha preso questo giorno un attimo prima di te.'
+    await chiedi(e.code !== 'permission-denied' ? 'Controlla la connessione e riprova.'
+      : t && t.cedo ? 'Questo turno non è più disponibile: guarda il calendario.'
+      : !t ? 'Qualcuno ha preso questo giorno un attimo prima di te.'
       : 'Controlla la connessione e riprova.', { titolo: 'Operazione non riuscita' });
   }
 }
@@ -730,9 +731,8 @@ function mostraAgenda() {
   if (admin) {
     import('./admin.js')
       .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN }); })
-      .catch(() => { $('stato').textContent = 'Pannello admin non caricato. Ricarica la pagina.'; $('stato').hidden = false; });
+      .catch(() => chiedi('Pannello admin non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
   }
-  $('impostazioni').hidden = !admin;
   navigator.serviceWorker?.register('sw.js');
   disegnaPromemoria().catch(console.error);
   contaAccesso();

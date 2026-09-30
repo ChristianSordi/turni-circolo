@@ -13,7 +13,7 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **PIN dimenticato:** chiedi all'amministratore di reimpostarlo.
 - **Non puoi più fare un turno?** Tocca il tuo giorno → "Cerco un sostituto". Il giorno diventa arancione
   con la scritta "cercasi" e chi ha i promemoria attivi riceve un avviso. Il turno resta tuo finché qualcuno
-  non lo prende: allora ti arriva un avviso. Ci hai ripensato? Tocca il giorno → "Lo faccio io".
+  non lo prende: allora, se hai attivato i promemoria, ti arriva un avviso; altrimenti lo vedi in calendario. Ci hai ripensato? Tocca il giorno → "Lo faccio io".
 - **Vuoi prendere il turno di un altro?** Tocca un giorno arancione → "Prendo io il turno".
 - **Promemoria sul telefono** (una settimana prima e il giorno prima del turno): in fondo al calendario
   tocca "Attiva promemoria" e accetta le notifiche. Su **Android** basta Chrome. Su **iPhone** (iOS 16.4
@@ -29,7 +29,7 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
   PIN al socio. I turni restano suoi e il vecchio PIN smette di funzionare ovunque.
 - **Storico e accessi:** nell'elenco **Soci** ogni riga dice quanti turni, quante volte ha aperto l'app e
   quando l'ultima volta. "Storico" mostra chi ha segnato, tolto, cercato un sostituto o preso un turno, e
-  quando. Lo scrive la funzione `attivita`, parte dal 30 settembre 2026; i turni già segnati prima hanno la
+  quando. Lo scrive la funzione `attivita`, parte dal giorno in cui è stata attivata; i turni già segnati prima hanno la
   nota "(da prima dello storico)". Un accesso = apertura, o ritorno all'app dopo almeno 30 minuti.
 - **Correggere un nome:** console Firebase → Firestore → `persone` → modifica `nome` (sempre nome e
   cognome), **poi** tocca "Reimposta PIN" per quel socio, altrimenti non riesce più a entrare. I turni
@@ -37,6 +37,9 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **Eliminare un socio** (se lo chiede, o se non fa più parte del circolo): elenco **Soci** → "Elimina".
   Poi scegli se eliminare anche i suoi turni (tutti, anche quelli già fatti, quindi sparisce dalla
   classifica) o tenerli in calendario e in classifica. Se chiede di cancellare i suoi dati, eliminali.
+  "Elimina" non cancella lo storico né il contatore accessi: per cancellare TUTTO di un socio, dopo "Elimina"
+  vai nella console Firebase → Firestore ed elimina `accessi/<id del socio>` e i documenti di `attivita` con
+  `socio` = quell'id (filtra sul campo). L'id lo vedi in `persone` prima di eliminare, o nel campo `socio` delle sue righe in `attivita`.
   Da quel telefono non potrà più iscriversi: se deve tornare, lo fa da un altro browser o telefono.
 - **Orari e giorno di chiusura:** in fondo al calendario, **Orari del circolo** → "Salva orari".
   Gli orari compaiono in cima alla pagina per tutti; nel giorno di chiusura nessuno può segnarsi
