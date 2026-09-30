@@ -329,7 +329,7 @@
   </section>
 </main>
 <p class="nota privacy">Nome, cognome e turni sono usati solo per organizzare i turni del Circolo e sono visibili
-  solo ai soci. L'amministratore vede anche chi ha segnato, tolto o passato un turno e quante volte ciascuno
+  solo ai soci. L'amministratore vede anche chi segna, toglie o passa a un altro un turno, e quante volte ciascuno
   apre l'app. Per farli cancellare, chiedi al Circolo.</p>
 </div>
 
@@ -578,9 +578,9 @@ function disegnaProssimo() {
   }
   const [primo] = miei;
   p.replaceChildren(el('span', '', 'Il tuo prossimo turno'), el('strong', '', giornoLeggibile(primo)),
-    el('span', 'nota', [turni[primo].cedo && 'Stai cercando un sostituto',
-      miei.length === 2 ? 'e un altro in programma' : miei.length > 2 ? `e altri ${miei.length - 1} in programma` : '',
-    ].filter(Boolean).join(' · ')));
+    el('span', 'nota', turni[primo].cedo
+      ? ['Stai cercando un sostituto', miei.length === 2 ? 'hai anche un altro turno in programma' : miei.length > 2 ? `hai anche altri ${miei.length - 1} turni in programma` : ''].filter(Boolean).join(' · ')
+      : miei.length === 2 ? 'e un altro in programma' : miei.length > 2 ? `e altri ${miei.length - 1} in programma` : ''));
   p.onclick = () => { anno = Number(primo.slice(0, 4)); mese = primo.slice(5, 7) - 1; disegna(); };
 }
 
@@ -723,8 +723,8 @@ async function tocca(data) {
       }
     } else if (t.id === io.id && !passato) {
       const scelta = await chiedi(t.cedo
-        ? 'Stai cercando un sostituto: il turno resta tuo finché qualcuno non lo prende.'
-        : 'È il tuo turno. Se non puoi più farlo, cerca un sostituto.', {
+        ? 'Stai cercando un sostituto: il turno resta tuo finché qualcuno non lo prende. Se ora puoi farlo tu, tocca «Lo faccio io» e nessuno potrà più prenderlo.'
+        : 'È il tuo turno. Se non puoi farlo, cerca un sostituto: il turno resta tuo finché qualcuno non lo prende. Se lo togli, il giorno torna libero.', {
         titolo: quando, ok: t.cedo ? 'Lo faccio io' : 'Cerco un sostituto', altro: 'Togli il turno', annulla: 'Annulla',
       });
       if (scelta === 'altro') {
@@ -737,7 +737,7 @@ async function tocca(data) {
         titolo: 'Cerchi un sostituto?', ok: 'Sì, avvisa tutti', annulla: 'Annulla',
       })) {
         await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome, cedo: true });
-        avvisoBreve('Abbiamo avvisato tutti: quando qualcuno lo prende, ti arriva un avviso');
+        avvisoBreve('Fatto: ora tutti vedono che cerchi un sostituto');
       }
     } else if (t.cedo && !passato) {
       const scelta = await chiedi(`${t.nome} cerca un sostituto. Se lo prendi, il turno diventa tuo.`, {
