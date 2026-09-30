@@ -257,3 +257,20 @@ test('storico: lo legge solo l\'admin, nessuno lo scrive dall\'app', async () =>
   await assertSucceeds(getDocs(query(collection(db('capo'), 'attivita'), where('socio', '==', 'anna'))));
   await assertFails(setDoc(doc(db('capo'), 'attivita', 'y'), { socio: 'anna' }));
 });
+
+test('admin legato alla persona: con nome e PIN si torna admin su un altro telefono', async () => {
+  // Anna diventa admin anche come persona (id del profilo), con la stessa parola segreta.
+  await assertFails(setDoc(doc(db('anna'), 'admin', 'anna'), { chiave: 'sbagliata' }));
+  await assertFails(setDoc(doc(db('bruno'), 'admin', 'anna'), { chiave: 'CAMBIAMI' })); // non è il suo profilo
+  await assertSucceeds(setDoc(doc(db('anna'), 'admin', 'anna'), { chiave: 'CAMBIAMI' }));
+  // Telefono nuovo di Anna, collegato con nome e PIN: è admin senza parola segreta.
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'dispositivi', 'anna-nuovo'), { id: 'anna', segreto: CHIAVE_ANNA }));
+  await assertSucceeds(getDoc(doc(db('anna-nuovo'), 'admin', 'anna')));
+  await assertFails(getDoc(doc(db('bruno'), 'admin', 'anna')));
+  await assertSucceeds(getDocs(collection(db('anna-nuovo'), 'persone')));
+  await setDoc(doc(db('bruno'), 'turni', GIORNO), { id: 'bruno', nome: 'Bruno Bianchi' });
+  await assertSucceeds(deleteDoc(doc(db('anna-nuovo'), 'turni', GIORNO)));
+  // Bruno resta un socio normale.
+  await assertFails(getDocs(collection(db('bruno'), 'persone')));
+});

@@ -11,6 +11,8 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **Telefono nuovo o pagina che non ti riconosce più:** apri la pagina e scrivi gli stessi nome,
   cognome e PIN: ritrovi i tuoi turni. Maiuscole e spazi non contano.
 - **PIN dimenticato:** chiedi all'amministratore di reimpostarlo.
+- **Ti chiede nome e PIN ogni volta?** Il telefono non lascia salvare i dati: l'app lo dice nella schermata di
+  ingresso. Su iPhone: Impostazioni → Safari → disattiva «Blocca tutti i cookie»; niente navigazione privata.
 - **Non puoi più fare un turno?** Tocca il tuo giorno → "Cerco un sostituto". Il giorno diventa arancione
   con la scritta "cercasi" e chi ha i promemoria attivi riceve un avviso. Il turno resta tuo finché qualcuno
   non lo prende: allora, se hai attivato i promemoria, ti arriva un avviso; altrimenti lo vedi in calendario. Ci hai ripensato? Tocca il giorno → "Lo faccio io".
@@ -24,6 +26,7 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 ## Per l'amministratore
 
 - **Diventare admin:** apri una volta dal telefono il link del circolo con in più `&admin=<parola-segreta>`.
+  Da lì l'admin segue la persona: su un altro telefono bastano nome, cognome e PIN.
 - **Togliere un turno:** tocca il giorno occupato.
 - **Reimpostare un PIN:** in fondo al calendario, elenco **Soci** → "Reimposta PIN" → comunica il nuovo
   PIN al socio. I turni restano suoi e il vecchio PIN smette di funzionare ovunque.

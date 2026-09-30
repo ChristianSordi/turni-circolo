@@ -265,6 +265,7 @@
   <input id="cognome" maxlength="30" autocomplete="family-name" autocorrect="off" spellcheck="false" placeholder="es. Rossi">
   <label for="pin">PIN di 4 cifre</label>
   <input id="pin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····">
+  <p id="memoria" class="avviso" role="alert" hidden></p>
   <p class="avviso"><strong>Ricorda il tuo PIN.</strong>
     Ti servirà per rientrare se cambi telefono o se il telefono si dimentica di te.</p>
   <p id="errore-ingresso" class="errore" role="alert" hidden></p>
@@ -723,6 +724,7 @@ function contaAlRitorno() {
 
 function mostraAgenda() {
   history.replaceState(null, '', location.pathname); // via ?circolo e ?admin dalla barra
+  navigator.storage?.persist?.().catch(() => {}); // chiede al telefono di non ripulire da solo i dati dell'app
   $('stato').hidden = true;
   $('chi').textContent = io.nome;
   $('ruolo').hidden = !admin;
@@ -767,6 +769,22 @@ function ascoltaOrari() {
   }, () => {});
 }
 
+// Cookie e dati bloccati (Safari «Blocca tutti i cookie»): il telefono si dimentica di te a ogni apertura.
+function memoriaBloccata() {
+  try { localStorage.setItem('prova', '1'); localStorage.removeItem('prova'); return false; } catch { return true; }
+}
+
+// L'admin segue la persona: chi ha aperto la parola segreta su un telefono torna admin, con nome e PIN, su tutti.
+async function adminPersona(uid, suQuestoTelefono) {
+  const perPersona = doc(db, 'admin', io.id);
+  if ((await getDoc(perPersona).catch(() => null))?.exists()) return true;
+  if (!suQuestoTelefono) return false;
+  // La parola segreta è già nel documento di questo telefono: la stessa lega anche la persona.
+  const { chiave } = (await getDoc(doc(db, 'admin', uid))).data();
+  await setDoc(perPersona, { chiave }).catch(console.error);
+  return true;
+}
+
 async function avvia() {
   try {
     const { user } = await signInAnonymously(auth);
@@ -777,7 +795,12 @@ async function avvia() {
       try { await setDoc(doc(db, 'admin', user.uid), { chiave: chiaveAdmin }); admin = true; }
       catch { await chiedi('Chiave amministratore non valida.'); }
     }
+    $('memoria').hidden = !memoriaBloccata();
+    $('memoria').textContent = iPhone
+      ? 'Questo telefono non ci lascia ricordare il tuo accesso: ti chiederemo nome e PIN ogni volta. Per sistemarlo, nelle Impostazioni del telefono apri Safari e disattiva «Blocca tutti i cookie», poi riapri Turni. Se stai navigando in privato, usa una scheda normale.'
+      : 'Questo browser non ci lascia ricordare il tuo accesso: ti chiederemo nome e PIN ogni volta. Per sistemarlo, nelle impostazioni del browser lascia che i siti salvino i dati (cookie) e non usare la navigazione in incognito.';
     io = (await profilo(user.uid)) ?? (await entra(user.uid));
+    admin = await adminPersona(user.uid, admin);
     mostraAgenda();
   } catch (e) {
     console.error(e);
