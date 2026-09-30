@@ -87,7 +87,9 @@ assert.equal((await db.doc(`attivita/import-${iso(domani)}`).get()).exists, fals
 const quante = (await db.collection('attivita').get()).size;
 importa();
 assert.equal((await db.collection('attivita').get()).size, quante);
-const [file] = readdirSync(cartella).filter((f) => f.startsWith('backup-'));
+const backup = readdirSync(cartella).filter((f) => f.startsWith('backup-')).sort();
+assert.equal(backup.length, 2); // ogni lancio tiene il suo backup
+const [file] = backup;
 assert.ok(JSON.parse(readFileSync(`${cartella}/${file}`, 'utf8')).turni['2026-11-07']);
 
 console.log('e2e funzioni: tutto ok');
