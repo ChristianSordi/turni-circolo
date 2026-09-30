@@ -1,0 +1,129 @@
+// Pannello dell'amministratore: elenco soci (turni, accessi, storico, reset PIN, elimina) e orari del circolo.
+// Lo carica index.html solo per l'admin. Stessi URL di Firebase di index.html: altrimenti db non è riconosciuto.
+import { doc, getDocs, setDoc, deleteDoc, collection, query, where, writeBatch }
+  from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { chiave, pinValido } from './profilo.js';
+import { fraseStorico } from './calendario.js';
+
+export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN }) {
+  let soci = [];      // [{ id, nome, segreto }]
+  let accessi = {};   // id socio → { n, ultimo }
+
+  async function caricaSoci() {
+    const [persone, conti] = await Promise.all([
+      getDocs(collection(db, 'persone')),
+      getDocs(collection(db, 'accessi')).catch(() => null), // contatore assente: l'elenco si vede lo stesso
+    ]);
+    soci = persone.docs.map((d) => ({ ...d.data(), segreto: d.id })).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+    accessi = Object.fromEntries(conti?.docs.map((d) => [d.id, d.data()]) ?? []);
+    disegnaSoci();
+  }
+
+  // ultimo è null finché il server non conferma la scrittura dell'admin stesso: vale "adesso".
+  const giornoMese = (t) => (t ? t.toDate() : new Date()).toLocaleDateString('it-IT', { day: 'numeric', month: 'numeric' });
+  function riassunto(s) {
+    const quanti = Object.values(turni()).filter((t) => t.id === s.id).length;
+    const a = accessi[s.id];
+    return [s.nome, turniN(quanti), a && `${a.n} ${a.n === 1 ? 'accesso' : 'accessi'}, ultimo ${giornoMese(a.ultimo)}`]
+      .filter(Boolean).join(' · ');
+  }
+
+  function disegnaSoci() {
+    if (!soci.length) return;
+    $('elenco-soci').replaceChildren(...soci.map((s) => {
+      const comandi = el('span', 'comandi');
+      const vedi = el('button', '', 'Storico');
+      vedi.onclick = () => storico(s);
+      const pin = el('button', '', 'Reimposta PIN');
+      pin.onclick = () => reimpostaPin(s);
+      comandi.append(vedi, pin);
+      if (s.id !== io.id) { // l'admin non elimina se stesso
+        const x = el('button', 'elimina', 'Elimina');
+        x.onclick = () => eliminaSocio(s);
+        comandi.append(x);
+      }
+      const li = el('li');
+      li.append(el('span', '', riassunto(s)), comandi);
+      return li;
+    }));
+    $('soci').hidden = false;
+  }
+
+  // Storico del socio, dalla riga più recente. Lo scrive functions/index.js a ogni modifica dei turni.
+  const ora = (t) => t.toDate().toLocaleString('it-IT', { day: 'numeric', month: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  async function storico(s) {
+    let righe;
+    try {
+      righe = (await getDocs(query(collection(db, 'attivita'), where('socio', '==', s.id)))).docs.map((d) => d.data());
+    } catch {
+      return chiedi('Controlla la connessione e riprova.', { titolo: 'Storico non disponibile' });
+    }
+    // ponytail: tutto lo storico del socio, ordinato qui (decine di righe l'anno); orderBy + limit + indice se diventano migliaia.
+    righe.sort((a, b) => b.quando.toMillis() - a.quando.toMillis());
+    await chiedi(righe.map((r) => `${ora(r.quando)} — ${fraseStorico(r)}`).join('\n\n') || 'Nessuna attività registrata.',
+      { titolo: `Storico di ${s.nome}` });
+  }
+
+  // Reset PIN: stesso id (i turni restano suoi), nuova chiave; la vecchia chiave smette di funzionare.
+  async function reimpostaPin(s) {
+    const pin = await chiedi('Scegli un nuovo PIN di 4 cifre e comunicalo al socio.', {
+      titolo: s.nome, ok: 'Reimposta PIN', annulla: 'Annulla', input: true,
+    });
+    if (pin === undefined) return;
+    if (!pinValido(pin)) return chiedi('Il PIN deve essere di 4 cifre.');
+    const nuova = await chiave(s.nome, pin);
+    if (nuova === s.segreto) return chiedi('È lo stesso PIN di prima.');
+    try {
+      await setDoc(doc(db, 'persone', nuova), { id: s.id, nome: s.nome });
+      await deleteDoc(doc(db, 'persone', s.segreto));
+      await chiedi(`Comunica a ${s.nome} il nuovo PIN.`, { titolo: 'PIN reimpostato' });
+    } catch {
+      await chiedi('Forse un omonimo ha già questo PIN: scegline un altro.', { titolo: 'PIN non reimpostato' });
+    }
+    if (s.segreto === io.segreto) return location.reload(); // PIN dell'admin stesso
+    await caricaSoci();
+  }
+
+  // Elimina il profilo e, se l'admin vuole, tutti i suoi turni (anche passati): tutto o niente.
+  async function eliminaSocio(s) {
+    if (!await chiedi(`Elimini ${s.nome}? Non potrà più entrare. Non si torna indietro.`, {
+      titolo: 'Eliminare il socio?', ok: 'Elimina', annulla: 'Annulla',
+    })) return;
+    const giorni = Object.entries(turni()).filter(([, t]) => t.id === s.id).map(([d]) => d);
+    const n = giorni.length;
+    // Chiudere la finestra = tenere i turni: la scelta che non perde dati.
+    const via = n > 0 && await chiedi(n === 1
+      ? 'Ha 1 turno segnato. Lo elimino o resta in calendario e in classifica?'
+      : `Ha ${n} turni segnati. Li elimino o restano in calendario e in classifica?`, {
+      titolo: 'E i suoi turni?', ok: n === 1 ? 'Elimina il turno' : 'Elimina i turni', annulla: n === 1 ? 'Tienilo' : 'Tienili',
+    });
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'persone', s.segreto));
+    if (via) giorni.forEach((d) => batch.delete(doc(db, 'turni', d)));
+    try {
+      await batch.commit();
+      avvisoBreve(`${s.nome} eliminato`);
+    } catch {
+      await chiedi('Controlla la connessione e riprova.', { titolo: 'Socio non eliminato' });
+    }
+    await caricaSoci();
+  }
+
+  async function salvaOrari(e) {
+    e.preventDefault();
+    const [apre, chiude, c] = [$('apre').value, $('chiude').value, $('chiusura').value];
+    if (!apre !== !chiude) return chiedi('Scrivi sia l\'apertura sia la chiusura, oppure lascia vuoti entrambi.');
+    $('salva-orari').disabled = true;
+    try {
+      await setDoc(doc(db, 'impostazioni', 'circolo'), { apre, chiude, chiusura: c === '' ? null : Number(c) });
+      avvisoBreve('Orari salvati');
+    } catch {
+      await chiedi('Controlla la connessione e riprova.', { titolo: 'Orari non salvati' });
+    }
+    $('salva-orari').disabled = false;
+  }
+
+  $('form-orari').onsubmit = salvaOrari;
+  caricaSoci();
+  return { disegnaSoci };
+}
