@@ -93,3 +93,13 @@ export function fraseStorico({ azione, giorno, altro, importato }) {
   }[azione] ?? `${azione}: ${g}`;
   return importato ? `${frase} (da prima dello storico)` : frase;
 }
+
+// Titolo di una giornata nella pagina Attività: "Oggi", "Ieri" o "Sabato 3 ottobre". giorno e oggi: AAAA-MM-GG.
+export function titoloGiorno(g, oggi) {
+  if (g === oggi) return 'Oggi';
+  const ieri = giorno(oggi);
+  ieri.setDate(ieri.getDate() - 1);
+  if (g === iso(ieri)) return 'Ieri';
+  const t = giornoLeggibile(g);
+  return t[0].toUpperCase() + t.slice(1);
+}

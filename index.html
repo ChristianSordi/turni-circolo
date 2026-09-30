@@ -114,7 +114,7 @@
   .ciao { margin: 0 0 16px; }
   .ruolo { margin-left: 6px; padding: 2px 8px; border-radius: 99px; background: var(--inchiostro); color: var(--su-inchiostro);
            font-size: .75rem; font-weight: 700; vertical-align: 2px; }
-  .schede { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 20px;
+  .schede { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; margin-bottom: 20px;
             border-radius: 99px; background: var(--preso); }
   .schede button, .periodo button { min-height: 46px; border: 0; border-radius: 99px; background: transparent;
                                     font: 700 1.05rem/1 var(--titoli); }
@@ -171,6 +171,12 @@
   #elenco-classifica { margin: 0; padding: 0; list-style: none; }
   #elenco-classifica li { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 10px;
                           padding: 10px 8px; border-bottom: 1px solid var(--linea); }
+  /* Attività (admin): tutte le azioni, per giorno */
+  #elenco-attivita { margin: 0; padding: 0; list-style: none; }
+  #elenco-attivita li { padding: 8px 0; border-bottom: 1px solid var(--linea); overflow-wrap: anywhere; }
+  #elenco-attivita .titolo { margin-top: 18px; padding-bottom: 4px; border-bottom: 2px solid var(--inchiostro);
+                             font: 800 1.15rem/1.2 var(--titoli); }
+  #elenco-attivita .ora { margin-right: 8px; color: var(--grigio); font-weight: 700; }
   #elenco-classifica li.io { border-radius: 12px; border-bottom-color: transparent; background: var(--rosso-tenue); }
   .posto { display: grid; place-items: center; width: 44px; height: 44px; font: 800 1.3rem/1 var(--titoli); color: var(--grigio); }
   /* La stella del circolo per chi è in testa */
@@ -271,6 +277,7 @@
   <nav class="schede" aria-label="Sezioni">
     <button id="scheda-calendario" aria-pressed="true">Calendario</button>
     <button id="scheda-classifica" aria-pressed="false">Classifica</button>
+    <button id="scheda-attivita" aria-pressed="false" hidden>Attività</button>
   </nav>
 
   <section id="vista-calendario">
@@ -326,6 +333,12 @@
     <p id="mia-posizione"></p>
     <ol id="elenco-classifica"></ol>
     <p class="nota">Contano solo i turni già fatti: quelli in programma entrano il giorno dopo.</p>
+  </section>
+
+  <section id="vista-attivita" hidden>
+    <p class="nota">Le ultime 200 azioni sui turni di tutti i soci, dalla più recente. Le vede solo l'amministratore.</p>
+    <p id="attivita-stato" class="nota" hidden></p>
+    <ol id="elenco-attivita"></ol>
   </section>
 </main>
 <p class="nota privacy">Nome, cognome e turni sono usati solo per organizzare i turni del Circolo e sono visibili
@@ -631,11 +644,12 @@ async function disattivaPromemoria() {
   }
 }
 
-function mostraVista(classificaAperta) {
-  $('vista-calendario').hidden = classificaAperta;
-  $('vista-classifica').hidden = !classificaAperta;
-  $('scheda-calendario').setAttribute('aria-pressed', String(!classificaAperta));
-  $('scheda-classifica').setAttribute('aria-pressed', String(classificaAperta));
+// Schede: 'calendario', 'classifica' o, solo per l'admin, 'attivita' (la mostra admin.js).
+function mostraVista(nome) {
+  for (const v of ['calendario', 'classifica', 'attivita']) {
+    $(`vista-${v}`).hidden = v !== nome;
+    $(`scheda-${v}`).setAttribute('aria-pressed', String(v === nome));
+  }
 }
 
 async function tocca(data) {
@@ -716,8 +730,8 @@ function mostraAgenda() {
   $('prima').onclick = () => cambiaMese(-1);
   $('dopo').onclick = () => cambiaMese(1);
   $('torna-oggi').onclick = () => { anno = new Date().getFullYear(); mese = new Date().getMonth(); disegna(); };
-  $('scheda-calendario').onclick = () => mostraVista(false);
-  $('scheda-classifica').onclick = () => mostraVista(true);
+  $('scheda-calendario').onclick = () => mostraVista('calendario');
+  $('scheda-classifica').onclick = () => mostraVista('classifica');
   $('periodo-anno').textContent = String(new Date().getFullYear());
   $('periodo-anno').onclick = () => { periodo = String(new Date().getFullYear()); disegnaClassifica(); };
   $('periodo-sempre').onclick = () => { periodo = null; disegnaClassifica(); };
@@ -729,8 +743,8 @@ function mostraAgenda() {
     disegna();
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; $('stato').hidden = false; });
   if (admin) {
-    import('./admin.js')
-      .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN }); })
+    import('./admin.js?v=2') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
+      .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }); })
       .catch(() => chiedi('Pannello admin non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
   }
   navigator.serviceWorker?.register('sw.js');

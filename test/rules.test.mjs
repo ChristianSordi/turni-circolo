@@ -233,6 +233,10 @@ test('accessi: solo il proprio, solo +1 con l\'ora del server, lo legge solo l\'
   const accesso = (uid, socio, dati) => setDoc(doc(db(uid), 'accessi', socio), dati, { merge: true });
   const piuUno = { n: increment(1), ultimo: serverTimestamp() };
   await assertSucceeds(accesso('anna', 'anna', piuUno));
+  await assertFails(accesso('anna', 'anna', piuUno)); // ricarica entro 30 minuti: non conta
+  // 31 minuti dopo l'ultimo accesso contato: conta.
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accessi', 'anna'), { n: 1, ultimo: new Date(Date.now() - 31 * 60 * 1000) }));
   await assertSucceeds(accesso('anna', 'anna', piuUno));
   await assertFails(accesso('anna', 'anna', { n: 10, ultimo: serverTimestamp() }));
   await assertFails(accesso('anna', 'anna', { n: increment(1), ultimo: new Date(2020, 0, 1) }));

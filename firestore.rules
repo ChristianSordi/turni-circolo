@@ -101,6 +101,7 @@ service cloud.firestore {
     }
 
     // Quante volte ogni socio apre l'app: ognuno aggiunge 1 al proprio, lo legge solo l'admin.
+    // Un'apertura conta solo a 30 minuti dalla precedente contata: le ricariche (iPhone, link di WhatsApp) no.
     function accessoValido(socio, n) {
       return socio == persona(dispositivo().segreto).id
         && request.resource.data.keys().hasOnly(['n', 'ultimo'])
@@ -110,7 +111,8 @@ service cloud.firestore {
     match /accessi/{socio} {
       allow read: if isAdmin();
       allow create: if accessoValido(socio, 1);
-      allow update: if accessoValido(socio, resource.data.n + 1);
+      allow update: if accessoValido(socio, resource.data.n + 1)
+        && request.time > resource.data.ultimo + duration.value(30, 'm');
     }
 
     // Sostituisci CAMBIAMI con la parola segreta SOLO nella console Firebase, mai nel repo.

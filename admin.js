@@ -1,11 +1,14 @@
-// Pannello dell'amministratore: elenco soci (turni, accessi, storico, reset PIN, elimina) e orari del circolo.
+// Pannello dell'amministratore: elenco soci (turni, accessi, storico, reset PIN, elimina), orari del circolo
+// e la scheda Attività con le azioni di tutti.
 // Lo carica index.html solo per l'admin. Stessi URL di Firebase di index.html: altrimenti db non è riconosciuto.
-import { doc, getDocs, setDoc, deleteDoc, collection, query, where, writeBatch }
+import { doc, getDocs, setDoc, deleteDoc, collection, query, where, orderBy, limit, writeBatch }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { chiave, pinValido } from './profilo.js';
-import { fraseStorico } from './calendario.js';
+// ?v=: GitHub Pages lascia i file in cache 10 minuti; senza, un telefono può unire questo admin.js nuovo a un
+// calendario.js vecchio. ponytail: v da aumentare a mano quando calendario.js cambia.
+import { iso, fraseStorico, titoloGiorno } from './calendario.js?v=2';
 
-export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN }) {
+export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }) {
   let soci = [];      // [{ id, nome, segreto }]
   let accessi = {};   // id socio → { n, ultimo }
 
@@ -123,6 +126,41 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN }
     $('salva-orari').disabled = false;
   }
 
+  // Scheda Attività: le ultime 200 azioni di tutti i soci, per giorno, dalla più recente (indice automatico su quando).
+  // "cede" non si mostra: è la stessa azione del "prende" dell'altro socio.
+  async function caricaAttivita() {
+    const stato = $('attivita-stato');
+    stato.textContent = 'Caricamento…';
+    stato.hidden = false;
+    let righe;
+    try {
+      righe = (await getDocs(query(collection(db, 'attivita'), orderBy('quando', 'desc'), limit(200)))).docs
+        .map((d) => d.data()).filter((r) => r.azione !== 'cede');
+    } catch {
+      stato.textContent = 'Controlla la connessione e riprova.';
+      return;
+    }
+    stato.textContent = 'Nessuna attività registrata.';
+    stato.hidden = righe.length > 0;
+    const oggi = iso(new Date());
+    let prima = '';
+    const voci = [];
+    for (const r of righe) {
+      const quando = r.quando.toDate();
+      if (iso(quando) !== prima) {
+        prima = iso(quando);
+        voci.push(el('li', 'titolo', titoloGiorno(prima, oggi)));
+      }
+      const li = el('li');
+      li.append(el('span', 'ora', quando.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })),
+        el('strong', '', r.nome), `: ${fraseStorico(r)}`); // testo, mai HTML: i nomi li scrivono gli utenti
+      voci.push(li);
+    }
+    $('elenco-attivita').replaceChildren(...voci);
+  }
+
+  $('scheda-attivita').hidden = false;
+  $('scheda-attivita').onclick = () => { mostraVista('attivita'); caricaAttivita(); };
   $('form-orari').onsubmit = salvaOrari;
   $('impostazioni').hidden = false;
   caricaSoci();

@@ -30,7 +30,10 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **Storico e accessi:** nell'elenco **Soci** ogni riga dice quanti turni, quante volte ha aperto l'app e
   quando l'ultima volta. "Storico" mostra chi ha segnato, tolto, cercato un sostituto o preso un turno, e
   quando. Lo scrive la funzione `attivita`, parte dal giorno in cui è stata attivata; i turni già segnati prima hanno la
-  nota "(da prima dello storico)". Un accesso = apertura, o ritorno all'app dopo almeno 30 minuti.
+  nota "(da prima dello storico)". Un accesso = un'apertura a distanza di almeno 30 minuti dalla precedente
+  contata: le ricariche ravvicinate non contano.
+- **Tutta l'attività:** la scheda **Attività** (la vede solo l'admin) mette in fila, dalla più recente e divise
+  per giorno, le ultime 200 azioni sui turni di tutti i soci.
 - **Correggere un nome:** console Firebase → Firestore → `persone` → modifica `nome` (sempre nome e
   cognome), **poi** tocca "Reimposta PIN" per quel socio, altrimenti non riesce più a entrare. I turni
   già segnati tengono il vecchio nome: correggili in `turni`.
