@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, quandoTurno, movimenti, fraseStorico } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -74,4 +74,53 @@ test('promemoria: una settimana prima e il giorno prima, anche a cavallo del mes
   ]);
   assert.equal(avvisi(new Date(2026, 9, 30), turni)[1].testo, 'Sabato 31 ottobre');
   assert.deepEqual(avvisi(new Date(2026, 0, 1), turni), []);
+});
+
+const ANNA = { id: 'anna', nome: 'Anna Rossi' };
+const BRUNO = { id: 'bruno', nome: 'Bruno Bianchi' };
+const SAB = '2026-10-10'; // sabato
+const ORARI = { apre: '18:00', chiude: '00:00' };
+
+test('quandoTurno: giorno con maiuscola e fascia oraria se c\'è', () => {
+  assert.equal(quandoTurno(SAB, ORARI), 'Sabato 10 ottobre, dalle 18:00 alle 24:00');
+  assert.equal(quandoTurno(SAB), 'Sabato 10 ottobre');
+});
+
+test('movimenti: segna, toglie, tolto dall\'admin, tolto da chi non si sa', () => {
+  assert.deepEqual(movimenti(SAB, null, ANNA, 'anna'),
+    { righe: [{ socio: 'anna', nome: 'Anna Rossi', azione: 'segna', giorno: SAB }], notifiche: [] });
+  assert.equal(movimenti(SAB, ANNA, null, 'anna').righe[0].azione, 'toglie');
+  assert.equal(movimenti(SAB, ANNA, null, 'capo').righe[0].azione, 'tolto-admin');
+  assert.equal(movimenti(SAB, ANNA, null, null).righe[0].azione, 'tolto');
+  assert.equal(movimenti(SAB, null, ANNA, null).righe[0].azione, 'segna');
+});
+
+test('movimenti: cerca un sostituto avvisa tutti tranne chi cede', () => {
+  assert.deepEqual(movimenti(SAB, ANNA, { ...ANNA, cedo: true }, 'anna', ORARI), {
+    righe: [{ socio: 'anna', nome: 'Anna Rossi', azione: 'cerca', giorno: SAB }],
+    notifiche: [{ tranne: 'anna', titolo: 'Cercasi sostituto',
+      testo: 'Sabato 10 ottobre, dalle 18:00 alle 24:00. Anna Rossi cerca un sostituto: apri Turni per prendere il turno.' }],
+  });
+});
+
+test('movimenti: ci ripensa, oppure un altro prende il turno', () => {
+  assert.deepEqual(movimenti(SAB, { ...ANNA, cedo: true }, ANNA, 'anna'),
+    { righe: [{ socio: 'anna', nome: 'Anna Rossi', azione: 'ritira', giorno: SAB }], notifiche: [] });
+  assert.deepEqual(movimenti(SAB, { ...ANNA, cedo: true }, BRUNO, 'bruno'), {
+    righe: [
+      { socio: 'bruno', nome: 'Bruno Bianchi', azione: 'prende', giorno: SAB, altro: 'Anna Rossi' },
+      { socio: 'anna', nome: 'Anna Rossi', azione: 'cede', giorno: SAB, altro: 'Bruno Bianchi' },
+    ],
+    notifiche: [{ a: 'anna', titolo: 'Turno passato', testo: 'Bruno Bianchi ha preso il tuo turno di sabato 10 ottobre.' }],
+  });
+  assert.deepEqual(movimenti(SAB, ANNA, ANNA, 'anna'), { righe: [], notifiche: [] });
+});
+
+test('fraseStorico: frasi intere, e la nota sulle righe importate', () => {
+  assert.equal(fraseStorico({ azione: 'segna', giorno: SAB }), 'ha segnato il turno di sabato 10 ottobre');
+  assert.equal(fraseStorico({ azione: 'tolto-admin', giorno: SAB }), 'l\'amministratore ha tolto il turno di sabato 10 ottobre');
+  assert.equal(fraseStorico({ azione: 'cede', giorno: SAB, altro: 'Bruno Bianchi' }), 'ha ceduto il turno di sabato 10 ottobre a Bruno Bianchi');
+  assert.equal(fraseStorico({ azione: 'prende', giorno: SAB, altro: 'Anna Rossi' }), 'ha preso il turno di sabato 10 ottobre da Anna Rossi');
+  assert.equal(fraseStorico({ azione: 'segna', giorno: SAB, importato: true }),
+    'ha segnato il turno di sabato 10 ottobre (da prima dello storico)');
 });

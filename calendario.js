@@ -40,12 +40,56 @@ export function classifica(turni, oggi, anno = null) {
   return righe;
 }
 
+// "Sabato 10 ottobre, dalle 18:00 alle 24:00": per le notifiche.
+export const quandoTurno = (giorno, orari = {}) => {
+  const t = [giornoLeggibile(giorno), fascia(orari)].filter(Boolean).join(', ');
+  return t[0].toUpperCase() + t.slice(1);
+};
+
 // Promemoria del mattino: chi ha il turno tra 7 giorni e chi domani. oggi = Date locale.
 export const avvisi = (oggi, turni, orari = {}) =>
   [[7, 'Tra una settimana'], [1, 'Domani']].flatMap(([n, quando]) => {
     const data = iso(new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() + n));
     const t = turni[data];
-    if (!t) return [];
-    const testo = [giornoLeggibile(data), fascia(orari)].filter(Boolean).join(', ');
-    return [{ id: t.id, titolo: `${quando} hai il turno al circolo`, testo: testo[0].toUpperCase() + testo.slice(1) }];
+    return t ? [{ id: t.id, titolo: `${quando} hai il turno al circolo`, testo: quandoTurno(data, orari) }] : [];
   });
+
+// Storico e notifiche di una modifica a turni/{giorno}. prima/dopo: { id, nome, cedo? } o null.
+// attore: id del socio che l'ha fatta; null = non si sa (console Firebase).
+export function movimenti(giorno, prima, dopo, attore, orari = {}) {
+  const riga = (t, azione, altro) => ({ socio: t.id, nome: t.nome, azione, giorno, ...(altro && { altro }) });
+  const solo = (r) => ({ righe: [r], notifiche: [] });
+  if (!prima) return solo(riga(dopo, 'segna'));
+  if (!dopo) return solo(riga(prima, attore === null ? 'tolto' : attore === prima.id ? 'toglie' : 'tolto-admin'));
+  if (prima.id !== dopo.id) {
+    return {
+      righe: [riga(dopo, 'prende', prima.nome), riga(prima, 'cede', dopo.nome)],
+      notifiche: [{ a: prima.id, titolo: 'Turno passato', testo: `${dopo.nome} ha preso il tuo turno di ${giornoLeggibile(giorno)}.` }],
+    };
+  }
+  if (!prima.cedo && dopo.cedo) {
+    return {
+      righe: [riga(dopo, 'cerca')],
+      notifiche: [{ tranne: dopo.id, titolo: 'Cercasi sostituto',
+        testo: `${quandoTurno(giorno, orari)}. ${dopo.nome} cerca un sostituto: apri Turni per prendere il turno.` }],
+    };
+  }
+  if (prima.cedo && !dopo.cedo) return solo(riga(dopo, 'ritira'));
+  return { righe: [], notifiche: [] };
+}
+
+// Una riga dello storico per l'admin, in parole: "ha ceduto il turno di sabato 10 ottobre a Bruno Bianchi".
+export function fraseStorico({ azione, giorno, altro, importato }) {
+  const g = `il turno di ${giornoLeggibile(giorno)}`;
+  const frase = {
+    segna: `ha segnato ${g}`,
+    toglie: `ha tolto ${g}`,
+    'tolto-admin': `l'amministratore ha tolto ${g}`,
+    tolto: `è stato tolto ${g}`,
+    cerca: `cerca un sostituto per ${g}`,
+    ritira: `farà ${g}: non cerca più un sostituto`,
+    prende: `ha preso ${g} da ${altro}`,
+    cede: `ha ceduto ${g} a ${altro}`,
+  }[azione] ?? `${azione}: ${g}`;
+  return importato ? `${frase} (da prima dello storico)` : frase;
+}
