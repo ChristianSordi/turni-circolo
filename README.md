@@ -11,6 +11,10 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **Telefono nuovo o pagina che non ti riconosce più:** apri la pagina e scrivi gli stessi nome,
   cognome e PIN: ritrovi i tuoi turni. Maiuscole e spazi non contano.
 - **PIN dimenticato:** chiedi all'amministratore di reimpostarlo.
+- **Non puoi più fare un turno?** Tocca il tuo giorno → "Cerco un sostituto". Il giorno diventa arancione
+  con la scritta "cercasi" e chi ha i promemoria attivi riceve un avviso. Il turno resta tuo finché qualcuno
+  non lo prende: allora ti arriva un avviso. Ci hai ripensato? Tocca il giorno → "Lo faccio io".
+- **Vuoi prendere il turno di un altro?** Tocca un giorno arancione → "Prendo io il turno".
 - **Promemoria sul telefono** (una settimana prima e il giorno prima del turno): in fondo al calendario
   tocca "Attiva promemoria" e accetta le notifiche. Su **Android** basta Chrome. Su **iPhone** (iOS 16.4
   o successivo) prima tocca Condividi → "Aggiungi alla schermata Home", apri Turni dall'icona e rientra
@@ -23,6 +27,10 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **Togliere un turno:** tocca il giorno occupato.
 - **Reimpostare un PIN:** in fondo al calendario, elenco **Soci** → "Reimposta PIN" → comunica il nuovo
   PIN al socio. I turni restano suoi e il vecchio PIN smette di funzionare ovunque.
+- **Storico e accessi:** nell'elenco **Soci** ogni riga dice quanti turni, quante volte ha aperto l'app e
+  quando l'ultima volta. "Storico" mostra chi ha segnato, tolto, cercato un sostituto o preso un turno, e
+  quando. Lo scrive la funzione `attivita`, parte dal 30 settembre 2026; i turni già segnati prima hanno la
+  nota "(da prima dello storico)". Un accesso = apertura, o ritorno all'app dopo almeno 30 minuti.
 - **Correggere un nome:** console Firebase → Firestore → `persone` → modifica `nome` (sempre nome e
   cognome), **poi** tocca "Reimposta PIN" per quel socio, altrimenti non riesce più a entrare. I turni
   già segnati tengono il vecchio nome: correggili in `turni`.
@@ -57,7 +65,7 @@ Parola admin e codice del circolo devono essere lunghi e casuali, non parole:
 
 ## Sviluppo
 
-Il sito è statico (`index.html`, `calendario.js`, `profilo.js`, `sw.js`, `manifest.webmanifest`,
+Il sito è statico (`index.html`, `admin.js`, `calendario.js`, `profilo.js`, `sw.js`, `manifest.webmanifest`,
 immagini) e si
 pubblica da solo con GitHub Pages a ogni push su `master`. I dati stanno su Firebase (Firestore in
 Europa, accesso anonimo).
@@ -76,6 +84,15 @@ Le chiavi delle notifiche (VAPID) stanno in `functions/.env` (fuori da git, copi
 `prod/vapid.local.json`); la pubblica è anche in `index.html`. Se si cambiano, i promemoria vanno
 riattivati su ogni telefono.
 
+La funzione `attivita` (stesso file, stessa regione) scatta a ogni modifica di un turno: scrive lo storico
+e manda gli avvisi di "Cerco un sostituto". `npm run e2e` prova entrambe le funzioni sull'emulatore.
+
+Backup e storico iniziale (una volta sola): console Firebase → Impostazioni progetto → Account di servizio →
+Genera nuova chiave privata → salvala come `prod/chiave-servizio.json`, poi dalla radice
+`GOOGLE_APPLICATION_CREDENTIALS=prod/chiave-servizio.json node functions/importa-storico.js`
+(`--solo-backup` per la sola copia in `prod/backup-<data e ora>.json`). Dopo l'uso revoca la chiave da
+Google Cloud → IAM → Account di servizio.
+
 **Costi: zero.** Il progetto è sul piano Blaze solo per la funzione programmata; tutto resta nelle
 quote gratuite (1 job di Cloud Scheduler su 3 gratis, ~30 esecuzioni al mese su 2 milioni). Le vecchie
 immagini della funzione si cancellano da sole dopo 1 giorno (`functions:artifacts:setpolicy`). Un
@@ -85,6 +102,7 @@ cambia: l'avviso non blocca la spesa, avvisa soltanto.
 ```bash
 npm install
 npm test                       # regole di sicurezza + calendario + profilo
+npm run e2e                    # funzioni (promemoria e storico) sull'emulatore
 npm run emulatori              # emulatori auth + firestore
 python3 -m http.server 8000    # poi apri http://localhost:8000/?circolo=CODICE-CIRCOLO
 ```
