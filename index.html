@@ -405,7 +405,7 @@ function el(tag, classe = '', testo = '') {
 }
 
 const turniN = (n) => `${n} ${n === 1 ? 'turno' : 'turni'}`;
-const breve = (nome) => { const [n, c] = nome.split(' '); return c ? `${n}\n${c[0]}.` : n; }; // "Mario R." nelle caselle
+const breve = (nome) => { const [n, c] = nome.split(' '); return c ? `${n}\n${c.length > 3 ? c.slice(0, 3) + '.' : c}` : n; }; // "Mario Ros." nelle caselle
 
 // Al posto di alert/confirm/prompt: finestra con pulsanti grandi, uno sotto l'altro.
 // Risolve true (ok), 'altro' (terzo pulsante), false; o il testo se c'è input.
