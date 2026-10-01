@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, quandoTurno, movimenti, fraseStorico, titoloGiorno } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -130,4 +130,10 @@ test('titoloGiorno: Oggi, Ieri, altrimenti il giorno per esteso', () => {
   assert.equal(titoloGiorno('2026-10-09', '2026-10-10'), 'Ieri');
   assert.equal(titoloGiorno('2026-09-30', '2026-10-01'), 'Ieri'); // a cavallo del mese
   assert.equal(titoloGiorno('2026-10-03', '2026-10-10'), 'Sabato 3 ottobre');
+});
+
+test('coperti: ottobre 2026 ha 4 lunedì, il turno di lunedì non conta', () => {
+  const turni = { '2026-10-02': {}, '2026-10-03': {}, '2026-10-05': {}, '2026-11-01': {} }; // il 5 è lunedì
+  assert.deepEqual(coperti(2026, 9, turni, 1), [2, 27]);
+  assert.deepEqual(coperti(2026, 9, turni, null), [3, 31]); // sempre aperto
 });

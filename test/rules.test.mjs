@@ -258,6 +258,16 @@ test('storico: lo legge solo l\'admin, nessuno lo scrive dall\'app', async () =>
   await assertFails(setDoc(doc(db('capo'), 'attivita', 'y'), { socio: 'anna' }));
 });
 
+test('elenco dei soci: lo leggono i soci, un estraneo no, nessuno lo scrive', async () => {
+  await env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'elenco', 'soci'), { soci: { anna: 'Anna Rossi', bruno: 'Bruno Bianchi' } }));
+  await assertSucceeds(getDoc(doc(db('bruno'), 'elenco', 'soci')));
+  await assertFails(getDoc(doc(db('carla'), 'elenco', 'soci')));
+  await assertFails(setDoc(doc(db('anna'), 'elenco', 'soci'), { soci: { anna: 'Anna Rossi' } }));
+  await diventaAdmin('capo');
+  await assertFails(setDoc(doc(db('capo'), 'elenco', 'soci'), { soci: {} }));
+});
+
 test('admin legato alla persona: con nome e PIN si torna admin su un altro telefono', async () => {
   // Anna diventa admin anche come persona (id del profilo), con la stessa parola segreta.
   await assertFails(setDoc(doc(db('anna'), 'admin', 'anna'), { chiave: 'sbagliata' }));

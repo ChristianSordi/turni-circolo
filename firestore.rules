@@ -102,6 +102,11 @@ service cloud.firestore {
       allow read: if isAdmin();
     }
 
+    // Elenco dei soci (id → nome): lo rifà functions/index.js, lo leggono i soci, nessuno lo scrive dall'app.
+    match /elenco/{id} {
+      allow read: if exists(/databases/$(database)/documents/persone/$(dispositivo().segreto));
+    }
+
     // Quante volte ogni socio apre l'app: ognuno aggiunge 1 al proprio, lo legge solo l'admin.
     // Un'apertura conta solo a 30 minuti dalla precedente contata: le ricariche (iPhone, link di WhatsApp) no.
     function accessoValido(socio, n) {

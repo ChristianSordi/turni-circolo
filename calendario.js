@@ -20,6 +20,11 @@ export const giornoLeggibile = (s) =>
 // Giorno di chiusura settimanale come getDay (0 = domenica … 6 = sabato); null = sempre aperto.
 export const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
 export const chiuso = (s, chiusura) => chiusura != null && giorno(s).getDay() === chiusura;
+// Turni coperti nel mese: [giorni aperti con un turno, giorni aperti]. I giorni di chiusura non contano.
+export function coperti(anno, mese, turni, chiusura) {
+  const aperti = griglia(anno, mese).filter((d) => d && !chiuso(d, chiusura));
+  return [aperti.filter((d) => turni[d]).length, aperti.length];
+}
 export const testoChiusura = (c) => (c == null ? '' : `chiuso ${c === 0 ? 'la' : 'il'} ${GIORNI[c]}`);
 
 // "dalle 18:00 alle 24:00": mezzanotte si legge 24:00. Vuoto se manca un orario.

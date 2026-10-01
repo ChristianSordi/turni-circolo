@@ -10,7 +10,7 @@ Object.assign(process.env, { VAPID_PUBLIC: chiavi.publicKey, VAPID_PRIVATE: chia
 const inviate = [];
 webpush.sendNotification = async (sub, payload) => { inviate.push({ endpoint: sub.endpoint, ...JSON.parse(payload) }); };
 
-const { promemoria, attivita } = await import('./index.js');
+const { promemoria, attivita, elenco } = await import('./index.js');
 const { getFirestore } = await import('firebase-admin/firestore');
 const { iso } = await import('./calendario.js');
 const db = getFirestore();
@@ -91,5 +91,14 @@ const backup = readdirSync(cartella).filter((f) => f.startsWith('backup-')).sort
 assert.equal(backup.length, 2); // ogni lancio tiene il suo backup
 const [file] = backup;
 assert.ok(JSON.parse(readFileSync(`${cartella}/${file}`, 'utf8')).turni['2026-11-07']);
+
+// Elenco dei soci: id → nome, senza chiavi; dopo un reset PIN (due profili con lo stesso id) un socio solo.
+await db.doc('persone/chiave-anna-nuova').set({ ...ANNA });
+await elenco.run({});
+assert.deepEqual((await db.doc('elenco/soci').get()).data(),
+  { soci: { anna: 'Anna Rossi', bruno: 'Bruno Bianchi', capo: 'Capo Circolo' } });
+await db.doc('persone/chiave-bruno').delete();
+await elenco.run({});
+assert.deepEqual(Object.keys((await db.doc('elenco/soci').get()).data().soci).sort(), ['anna', 'capo']);
 
 console.log('e2e funzioni: tutto ok');

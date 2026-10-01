@@ -2,7 +2,7 @@
 // Chiavi VAPID in functions/.env (fuori da git).
 process.env.TZ = 'Europe/Rome'; // il server gira in UTC: "domani" è quello italiano
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onDocumentWrittenWithAuthContext } from 'firebase-functions/v2/firestore';
+import { onDocumentWritten, onDocumentWrittenWithAuthContext } from 'firebase-functions/v2/firestore';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 import webpush from 'web-push';
@@ -68,4 +68,12 @@ export const attivita = onDocumentWrittenWithAuthContext({ ...MINIMO, maxInstanc
   await batch.commit();
   if (notifiche.length) vapid();
   for (const x of notifiche) await invia(db, x);
+});
+
+// Elenco dei soci (id → nome) che vedono tutti sotto il calendario: le chiavi di persone restano segrete.
+// Si rifà da capo a ogni iscrizione, reset PIN, eliminazione o nome corretto in console. 1 istanza = in ordine.
+export const elenco = onDocumentWritten({ ...MINIMO, document: 'persone/{chiave}' }, async () => {
+  const db = getFirestore();
+  const persone = (await db.collection('persone').get()).docs.map((d) => d.data());
+  await db.doc('elenco/soci').set({ soci: Object.fromEntries(persone.map((p) => [p.id, p.nome])) });
 });

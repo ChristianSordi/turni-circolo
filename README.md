@@ -4,7 +4,8 @@ Agenda condivisa dei turni del circolo: https://christiansordi.github.io/turni-c
 
 La prima volta si apre il link del circolo (quello del gruppo WhatsApp), si scrivono nome e cognome e
 si sceglie un PIN di 4 cifre. Poi basta toccare un giorno libero per segnarsi. Nessun account, niente
-da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da sempre.
+da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da sempre. Sotto il calendario
+c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascuno nel mese che stai guardando.
 
 ## Per i soci
 
@@ -28,9 +29,10 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **Diventare admin:** apri una volta dal telefono il link del circolo con in più `&admin=<parola-segreta>`.
   Da lì l'admin segue la persona: su un altro telefono bastano nome, cognome e PIN.
 - **Togliere un turno:** tocca il giorno occupato.
-- **Reimpostare un PIN:** in fondo al calendario, elenco **Soci** → "Reimposta PIN" → comunica il nuovo
+- **Le schede dell'admin** (sotto Calendario e Classifica, le vede solo l'admin): **Soci**, **Attività**, **Orari**.
+- **Reimpostare un PIN:** scheda **Soci** → "Reimposta PIN" → comunica il nuovo
   PIN al socio. I turni restano suoi e il vecchio PIN smette di funzionare ovunque.
-- **Storico e accessi:** nell'elenco **Soci** ogni riga dice quanti turni, quante volte ha aperto l'app e
+- **Storico e accessi:** nella scheda **Soci** ogni riga dice quanti turni, quante volte ha aperto l'app e
   quando l'ultima volta. "Storico" mostra chi ha segnato, tolto, cercato un sostituto o preso un turno, e
   quando. Lo scrive la funzione `attivita`, parte dal giorno in cui è stata attivata; i turni già segnati prima hanno la
   nota "(da prima dello storico)". Un accesso = un'apertura a distanza di almeno 30 minuti dalla precedente
@@ -40,14 +42,14 @@ da installare. La scheda **Classifica** conta i turni già fatti, dell'anno o da
 - **Correggere un nome:** console Firebase → Firestore → `persone` → modifica `nome` (sempre nome e
   cognome), **poi** tocca "Reimposta PIN" per quel socio, altrimenti non riesce più a entrare. I turni
   già segnati tengono il vecchio nome: correggili in `turni`.
-- **Eliminare un socio** (se lo chiede, o se non fa più parte del circolo): elenco **Soci** → "Elimina".
+- **Eliminare un socio** (se lo chiede, o se non fa più parte del circolo): scheda **Soci** → "Elimina".
   Poi scegli se eliminare anche i suoi turni (tutti, anche quelli già fatti, quindi sparisce dalla
   classifica) o tenerli in calendario e in classifica. Se chiede di cancellare i suoi dati, eliminali.
   "Elimina" non cancella lo storico né il contatore accessi: per cancellare TUTTO di un socio, dopo "Elimina"
   vai nella console Firebase → Firestore ed elimina `accessi/<id del socio>` e i documenti di `attivita` con
   `socio` = quell'id (filtra sul campo). L'id lo vedi in `persone` prima di eliminare, o nel campo `socio` delle sue righe in `attivita`.
   Da quel telefono non potrà più iscriversi: se deve tornare, lo fa da un altro browser o telefono.
-- **Orari e giorno di chiusura:** in fondo al calendario, **Orari del circolo** → "Salva orari".
+- **Orari e giorno di chiusura:** scheda **Orari** → "Salva orari".
   Gli orari compaiono in cima alla pagina per tutti; nel giorno di chiusura nessuno può segnarsi
   (i turni già segnati quel giorno restano).
 - **Link del circolo finito in mani sbagliate:** cambia il codice del circolo nelle regole (vedi sotto)
@@ -94,7 +96,8 @@ Le chiavi delle notifiche (VAPID) stanno in `functions/.env` (fuori da git, copi
 riattivati su ogni telefono.
 
 La funzione `attivita` (stesso file, stessa regione) scatta a ogni modifica di un turno: scrive lo storico
-e manda gli avvisi di "Cerco un sostituto". `npm run e2e` prova entrambe le funzioni sull'emulatore.
+e manda gli avvisi di "Cerco un sostituto". La funzione `elenco` rifà `elenco/soci` (id → nome, senza chiavi) a ogni
+scrittura in `persone`: è l'elenco che tutti vedono sotto il calendario. `npm run e2e` prova le funzioni sull'emulatore.
 
 Backup e storico iniziale (una volta sola): console Firebase → Impostazioni progetto → Account di servizio →
 Genera nuova chiave privata → salvala come `prod/chiave-servizio.json`, poi dalla radice

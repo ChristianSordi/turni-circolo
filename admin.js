@@ -1,5 +1,5 @@
-// Pannello dell'amministratore: elenco soci (turni, accessi, storico, reset PIN, elimina), orari del circolo
-// e la scheda Attività con le azioni di tutti.
+// Pannello dell'amministratore: le schede Soci (turni, accessi, storico, reset PIN, elimina), Attività (le azioni
+// di tutti) e Orari del circolo.
 // Lo carica index.html solo per l'admin. Stessi URL di Firebase di index.html: altrimenti db non è riconosciuto.
 import { doc, getDocs, onSnapshot, setDoc, deleteDoc, collection, query, where, orderBy, limit, writeBatch }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
@@ -20,11 +20,14 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
 
   // ultimo è null finché il server non conferma la scrittura dell'admin stesso: vale "adesso".
   const giornoMese = (t) => (t ? t.toDate() : new Date()).toLocaleDateString('it-IT', { day: 'numeric', month: 'numeric' });
-  function riassunto(s) {
+  function dati(s) {
     const quanti = Object.values(turni()).filter((t) => t.id === s.id).length;
     const a = accessi[s.id];
-    return [s.nome, turniN(quanti), a && `${a.n} ${a.n === 1 ? 'accesso' : 'accessi'}, ultimo ${giornoMese(a.ultimo)}`]
-      .filter(Boolean).join(' · ');
+    const riga = el('span', 'dati');
+    const voce = (n, testo) => { const v = el('span'); v.append(el('strong', '', n), ` ${testo}`); return v; };
+    riga.append(voce(String(quanti), quanti === 1 ? 'turno' : 'turni'));
+    if (a) riga.append(voce(String(a.n), a.n === 1 ? 'accesso' : 'accessi'), voce(giornoMese(a.ultimo), 'ultimo accesso'));
+    return riga;
   }
 
   function disegnaSoci() {
@@ -41,11 +44,11 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
         x.onclick = () => eliminaSocio(s);
         comandi.append(x);
       }
-      const li = el('li');
-      li.append(el('span', '', riassunto(s)), comandi);
+      const li = el('li', s.id === io.id ? 'io' : '');
+      li.append(el('span', 'chi', s.id === io.id ? `${s.nome} (tu)` : s.nome), dati(s), comandi);
       return li;
     }));
-    $('soci').hidden = false;
+    $('soci-conta').textContent = `${soci.length} ${soci.length === 1 ? 'socio iscritto' : 'soci iscritti'}, in ordine alfabetico.`;
   }
 
   // Storico del socio, dalla riga più recente. Lo scrive functions/index.js a ogni modifica dei turni.
@@ -155,10 +158,11 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
     $('elenco-attivita').replaceChildren(...voci);
   }
 
-  $('scheda-attivita').hidden = false;
+  $('schede-admin').hidden = false;
+  $('scheda-soci').onclick = () => mostraVista('soci');
   $('scheda-attivita').onclick = () => { mostraVista('attivita'); caricaAttivita(); };
+  $('scheda-orari').onclick = () => mostraVista('orari');
   $('form-orari').onsubmit = salvaOrari;
-  $('impostazioni').hidden = false;
   caricaSoci();
   // Accessi dal vivo: l'app dell'admin resta aperta per ore (iPhone), letti una volta sola restano vecchi.
   onSnapshot(collection(db, 'accessi'), (snap) => {
