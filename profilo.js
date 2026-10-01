@@ -2,6 +2,9 @@
 // Apostrofi tipografici (iPhone li mette da solo) → ' : "D’Amico" e "D'Amico" sono la stessa persona.
 export const normalizzaNome = (s) => s.normalize('NFC').replace(/[’‘`´]/g, "'").trim().replace(/\s+/g, ' ');
 
+// Come si mostra: "GABRIELE MASSACCESI" e "maria d'amico" → "Gabriele Massaccesi", "Maria D'Amico".
+export const maiuscole = (s) => normalizzaNome(s).toLowerCase().replace(/(^|[ '-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase());
+
 export function nomeValido(s) {
   const n = normalizzaNome(s);
   return n.length <= 60 && /^[^ ]+( [^ ]+)+$/.test(n);

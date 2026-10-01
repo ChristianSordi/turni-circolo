@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { normalizzaNome, nomeValido, pinValido, chiave } from '../profilo.js';
+import { normalizzaNome, maiuscole, nomeValido, pinValido, chiave } from '../profilo.js';
 
 test('normalizzaNome toglie spazi in eccesso', () => {
   assert.equal(normalizzaNome('  Mario   Rossi \t'), 'Mario Rossi');
@@ -31,4 +31,12 @@ test('chiave = SHA-256 di nome minuscolo normalizzato + PIN', async () => {
 test('apostrofo tipografico (iPhone) = apostrofo normale', async () => {
   assert.equal(normalizzaNome('Maria D’Amico'), "Maria D'Amico");
   assert.equal(await chiave('Maria D’Amico', '1234'), await chiave("Maria D'Amico", '1234'));
+});
+
+test('maiuscole: solo la prima lettera di nome e cognome', async () => {
+  assert.equal(maiuscole('GABRIELE  MASSACCESI'), 'Gabriele Massaccesi');
+  assert.equal(maiuscole('maria d’amico'), "Maria D'Amico");
+  assert.equal(maiuscole('anna maria rossi-bianchi'), 'Anna Maria Rossi-Bianchi');
+  assert.equal(maiuscole('Élodie DE LUCA'), 'Élodie De Luca');
+  assert.equal(await chiave(maiuscole('GABRIELE MASSACCESI'), '1234'), await chiave('GABRIELE MASSACCESI', '1234'));
 });

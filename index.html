@@ -395,7 +395,7 @@ import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gst
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=3'; // ?v=: vedi admin.js
-import { normalizzaNome, nomeValido, pinValido, chiave } from './profilo.js';
+import { normalizzaNome, maiuscole, nomeValido, pinValido, chiave } from './profilo.js?v=2'; // ?v=: vedi admin.js
 
 // Config web dalla console Firebase (Impostazioni progetto → Le tue app). Non è segreta.
 const firebaseConfig = {
@@ -492,7 +492,7 @@ function modulo() {
       e.preventDefault();
       // Nome + cognome uniti: stessa chiave di prima; maiuscole e spazi non contano (vedi profilo.js).
       const [n, c] = [normalizzaNome($('nome').value), normalizzaNome($('cognome').value)];
-      const nome = `${n} ${c}`;
+      const nome = maiuscole(`${n} ${c}`); // come viene scritto, si mostra Mario Rossi
       const pin = $('pin').value.trim();
       if (!n) return erroreIngresso('Scrivi il nome.');
       if (!c) return erroreIngresso('Scrivi il cognome.');
