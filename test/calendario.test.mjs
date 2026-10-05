@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -132,8 +132,36 @@ test('titoloGiorno: Oggi, Ieri, altrimenti il giorno per esteso', () => {
   assert.equal(titoloGiorno('2026-10-03', '2026-10-10'), 'Sabato 3 ottobre');
 });
 
-test('coperti: ottobre 2026 ha 4 lunedì, il turno di lunedì non conta', () => {
+test('coperti: ottobre 2026 ha 4 lunedì; un lunedì aperto da un socio conta', () => {
   const turni = { '2026-10-02': {}, '2026-10-03': {}, '2026-10-05': {}, '2026-11-01': {} }; // il 5 è lunedì
-  assert.deepEqual(coperti(2026, 9, turni, 1), [2, 27]);
+  assert.deepEqual(coperti(2026, 9, turni, 1), [3, 28]);
   assert.deepEqual(coperti(2026, 9, turni, null), [3, 31]); // sempre aperto
+});
+
+test('chiavi: l\'admin le dà e le toglie', () => {
+  const vuoto = { chi: {}, consegne: {} };
+  assert.deepEqual(movimentiChiavi(vuoto, { chi: { anna: 'Anna Rossi' }, consegne: {} }, 'capo').righe,
+    [{ socio: 'anna', nome: 'Anna Rossi', azione: 'assegna' }]);
+  assert.deepEqual(movimentiChiavi({ chi: { anna: 'Anna Rossi' }, consegne: {} }, vuoto, null).righe,
+    [{ socio: 'anna', nome: 'Anna Rossi', azione: 'toglie' }]);
+});
+
+test('chiavi: consegna con avviso, poi conferma o rifiuto; l\'annullamento non si scrive', () => {
+  const nomi = { bruno: 'Bruno Bianchi' };
+  const ha = { chi: { anna: 'Anna Rossi' }, consegne: {} };
+  const inAttesa = { chi: { anna: 'Anna Rossi' }, consegne: { bruno: 'anna' } };
+  assert.deepEqual(movimentiChiavi(ha, inAttesa, 'anna', nomi), { righe: [], notifiche: [{ a: 'bruno',
+    titolo: 'Chiavi del circolo', testo: 'Anna Rossi dice di averti dato le chiavi del circolo: apri Turni e conferma.' }] });
+  assert.deepEqual(movimentiChiavi(inAttesa, { chi: { bruno: 'Bruno Bianchi' }, consegne: {} }, 'bruno', nomi).righe,
+    [{ socio: 'bruno', nome: 'Bruno Bianchi', azione: 'riceve', altro: 'Anna Rossi' }]);
+  assert.deepEqual(movimentiChiavi(inAttesa, ha, 'bruno', nomi).righe,
+    [{ socio: 'bruno', nome: 'Bruno Bianchi', azione: 'rifiuta', altro: 'Anna Rossi' }]);
+  assert.deepEqual(movimentiChiavi(inAttesa, ha, 'anna', nomi), { righe: [], notifiche: [] });
+});
+
+test('fraseChiavi: frasi intere con i nomi', () => {
+  assert.equal(fraseChiavi({ azione: 'assegna', nome: 'Anna Rossi' }), 'l\'amministratore ha segnato che Anna Rossi ha le chiavi');
+  assert.equal(fraseChiavi({ azione: 'riceve', nome: 'Bruno Bianchi', altro: 'Anna Rossi' }),
+    'Anna Rossi ha dato le chiavi a Bruno Bianchi, che ha confermato');
+  assert.equal(fraseChiavi({ azione: 'toglie', nome: 'Anna Rossi' }), 'l\'amministratore ha segnato che Anna Rossi non ha più le chiavi');
 });

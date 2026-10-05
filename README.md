@@ -18,6 +18,12 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
   con la scritta "cercasi" e chi ha i promemoria attivi riceve un avviso. Il turno resta tuo finché qualcuno
   non lo prende: allora, se hai attivato i promemoria, ti arriva un avviso; altrimenti lo vedi in calendario. Ci hai ripensato? Tocca il giorno → "Lo faccio io".
 - **Vuoi prendere il turno di un altro?** Tocca un giorno arancione → "Prendo io il turno".
+- **Giorno di chiusura:** la casella è a righe con scritto "chiuso". Se vuoi aprire lo stesso, toccala →
+  "Apro io e mi segno": il turno lo vedono tutti come gli altri.
+- **Chiavi del circolo:** la scheda **Chiavi** mostra chi le ha e tutti i passaggi. Chi le ha lo segna
+  l'amministratore: se le hai e non sei nell'elenco, diglielo. Quando le dai a un altro socio, scegli a chi e tocca "Ho dato le chiavi":
+  passano all'altro socio solo quando conferma (la richiesta compare in cima all'app, e arriva un avviso se ha i promemoria). Da solo
+  nessuno si toglie le chiavi.
 - **Promemoria sul telefono** (una settimana prima e il giorno prima del turno): in fondo al calendario
   tocca "Attiva promemoria" e accetta le notifiche. Su **Android** basta Chrome. Su **iPhone** (iOS 16.4
   o successivo) prima tocca Condividi → "Aggiungi alla schermata Home", apri Turni dall'icona e rientra
@@ -50,8 +56,11 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
   `socio` = quell'id (filtra sul campo). L'id lo vedi in `persone` prima di eliminare, o nel campo `socio` delle sue righe in `attivita`.
   Da quel telefono non potrà più iscriversi: se deve tornare, lo fa da un altro browser o telefono.
 - **Orari e giorno di chiusura:** scheda **Orari** → "Salva orari".
-  Gli orari compaiono in cima alla pagina per tutti; nel giorno di chiusura nessuno può segnarsi
-  (i turni già segnati quel giorno restano).
+  Gli orari compaiono in cima alla pagina per tutti; il giorno di chiusura è a righe in calendario, ma chi vuole
+  aprire lo stesso può segnarsi (conta nei "turni coperti" del mese).
+- **Chiavi:** nella scheda **Chiavi** l'admin segna chi ha le chiavi ("Segna che ha le chiavi") o le toglie
+  ("Togli" sul cartellino). Ogni passaggio (anche dell'admin) finisce in "Passaggi delle chiavi", che vedono tutti:
+  lo scrive la funzione `chiavi`. Se un socio dice di non aver ricevuto le chiavi, resta scritto lì.
 - **Link del circolo finito in mani sbagliate:** cambia il codice del circolo nelle regole (vedi sotto)
   e manda il link nuovo nel gruppo. Chi è già iscritto non si accorge di nulla.
 
@@ -76,7 +85,7 @@ Parola admin e codice del circolo devono essere lunghi e casuali, non parole:
 
 ## Sviluppo
 
-Il sito è statico (`index.html`, `admin.js`, `calendario.js`, `profilo.js`, `sw.js`, `manifest.webmanifest`,
+Il sito è statico (`index.html`, `admin.js`, `chiavi.js`, `calendario.js`, `profilo.js`, `sw.js`, `manifest.webmanifest`,
 immagini) e si
 pubblica da solo con GitHub Pages a ogni push su `master`. I dati stanno su Firebase (Firestore in
 Europa, accesso anonimo).
@@ -95,7 +104,8 @@ Le chiavi delle notifiche (VAPID) stanno in `functions/.env` (fuori da git, copi
 `prod/vapid.local.json`); la pubblica è anche in `index.html`. Se si cambiano, i promemoria vanno
 riattivati su ogni telefono.
 
-La funzione `attivita` (stesso file, stessa regione) scatta a ogni modifica di un turno: scrive lo storico
+La funzione `chiavi` scrive `storico-chiavi` a ogni modifica di `chiavi/circolo` e avvisa chi deve confermare una
+consegna. La funzione `attivita` (stesso file, stessa regione) scatta a ogni modifica di un turno: scrive lo storico
 e manda gli avvisi di "Cerco un sostituto". La funzione `elenco` rifà `elenco/soci` (id → nome, senza chiavi) a ogni
 scrittura in `persone`: è l'elenco che tutti vedono sotto il calendario. `npm run e2e` prova le funzioni sull'emulatore.
 

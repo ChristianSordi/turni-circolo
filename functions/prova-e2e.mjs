@@ -10,7 +10,7 @@ Object.assign(process.env, { VAPID_PUBLIC: chiavi.publicKey, VAPID_PRIVATE: chia
 const inviate = [];
 webpush.sendNotification = async (sub, payload) => { inviate.push({ endpoint: sub.endpoint, ...JSON.parse(payload) }); };
 
-const { promemoria, attivita, elenco } = await import('./index.js');
+const { promemoria, attivita, elenco, chiavi: passaggiChiavi } = await import('./index.js');
 const { getFirestore } = await import('firebase-admin/firestore');
 const { iso } = await import('./calendario.js');
 const db = getFirestore();
@@ -100,5 +100,20 @@ assert.deepEqual((await db.doc('elenco/soci').get()).data(),
 await db.doc('persone/chiave-bruno').delete();
 await elenco.run({});
 assert.deepEqual(Object.keys((await db.doc('elenco/soci').get()).data().soci).sort(), ['anna', 'capo']);
+
+// Chiavi: l'admin le dà ad Anna, le dà a Bruno (avviso a Bruno), Bruno conferma; documento cancellato dalla console.
+const evChiavi = (prima, dopo, authId) => ({ ...evento(prima, dopo, authId), params: {} });
+const ha = { chi: { anna: 'Anna Rossi' }, consegne: {} };
+const consegna = { chi: { anna: 'Anna Rossi' }, consegne: { bruno: 'anna' } };
+await db.doc('persone/chiave-bruno').set({ ...BRUNO }); // tolto dalla prova dell'elenco
+inviate.length = 0;
+await passaggiChiavi.run(evChiavi(null, ha, 'capo'));
+await passaggiChiavi.run(evChiavi(ha, consegna, 'anna'));
+assert.deepEqual(inviate.map((i) => `${i.endpoint} ${i.titolo}`), ['https://push.prova/bruno Chiavi del circolo']);
+await passaggiChiavi.run(evChiavi(consegna, { chi: { bruno: 'Bruno Bianchi' }, consegne: {} }, 'bruno'));
+const passaggi = (await db.collection('storico-chiavi').get()).docs.map((d) => d.data())
+  .sort((a, b) => a.quando.toMillis() - b.quando.toMillis());
+assert.deepEqual(passaggi.map((r) => `${r.nome}:${r.azione}:${r.altro ?? ''}`),
+  ['Anna Rossi:assegna:', 'Bruno Bianchi:riceve:Anna Rossi']);
 
 console.log('e2e funzioni: tutto ok');

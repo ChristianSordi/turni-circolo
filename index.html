@@ -41,6 +41,8 @@
     --su-inchiostro: #fff;
     --rosso-testo: #d42a20;
     --arancio: #c25e00; --arancio-tenue: #ffe6cc; --arancio-testo: #8a4300;
+    --verde: #1d7a35; --occupato: #d5dae2;
+    --chiave: #f7d31a; /* il giallo della striscia della pace, per i cartellini delle chiavi */
     --titoli: 'Baloo 2', system-ui, sans-serif;
   }
   /* Scuro: segue il sistema, salvo scelta "Chiaro"; oppure scelto a mano. Stessi valori nei due blocchi. */
@@ -50,6 +52,7 @@
       --rosso-testo: #ff8277; --rosso-tenue: #3b2220; --preso: #363232; --linea: #4d4747; --grigio: #b3abaa;
       --blu: #8db3ff; --giallo-tenue: #3a321a;
       --arancio: #f28c1e; --arancio-tenue: #4a2e12; --arancio-testo: #ffb366;
+      --verde: #6fd389; --occupato: #48403f;
     }
   }
   :root[data-theme="dark"] {
@@ -57,6 +60,7 @@
     --rosso-testo: #ff8277; --rosso-tenue: #3b2220; --preso: #363232; --linea: #4d4747; --grigio: #b3abaa;
     --blu: #8db3ff; --giallo-tenue: #3a321a;
     --arancio: #f28c1e; --arancio-tenue: #4a2e12; --arancio-testo: #ffb366;
+    --verde: #6fd389; --occupato: #48403f;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--sfondo); color: var(--inchiostro);
@@ -146,7 +150,10 @@
                  font: 800 1.05rem/1 var(--titoli); }
   .giorno .nome { display: block; width: 100%; font-size: .68rem; line-height: 1.15; text-align: center;
                  white-space: pre; overflow: hidden; text-overflow: ellipsis; }
-  .giorno.altro { border: 2px solid var(--preso); background: var(--preso); }
+  /* Libero (si può ancora prendere): bordo verde e un + grande. Preso: pieno, senza tratteggio. */
+  .giorno.libero { border-color: var(--verde); }
+  .giorno.libero .nome { margin-top: -3px; font: 800 1.6rem/1 var(--titoli); color: var(--verde); }
+  .giorno.altro { border: 2px solid var(--occupato); background: var(--occupato); font-weight: 700; }
   .giorno.mio { border: 2px solid var(--rosso); background: var(--rosso); color: #fff; font-weight: 700; }
   .giorno.passato { opacity: .5; border-style: solid; }
   .giorno.oggi .num { background: var(--inchiostro); color: var(--su-inchiostro); }
@@ -156,7 +163,7 @@
   .giorno.cerca .nome { font-size: .6rem; font-weight: 700; color: var(--arancio-testo); }
   .giorno.cerca.oggi .num { background: var(--inchiostro); color: var(--su-inchiostro); }
   /* Giorno di chiusura: la serranda abbassata */
-  .giorno.chiuso, .legenda .l-chiuso { border: 2px solid var(--linea); color: var(--grigio); cursor: default;
+  .giorno.chiuso, .legenda .l-chiuso { border: 2px solid var(--linea); color: var(--grigio);
     background: repeating-linear-gradient(var(--superficie) 0 5px, var(--linea) 5px 7px); }
   .giorno.chiuso .nome { width: auto; margin-top: auto; padding: 0 3px; border-radius: 4px; background: var(--superficie);
                          font-weight: 700; }
@@ -164,8 +171,10 @@
   .legenda { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; padding: 0; list-style: none; font-size: .9rem; }
   .legenda i { display: inline-block; width: 16px; height: 16px; margin-right: 6px; border-radius: 4px; vertical-align: -2px; }
   .legenda .l-mio { background: var(--rosso); }
-  .legenda .l-altro { background: var(--preso); }
-  .legenda .l-libero { border: 2px dashed var(--linea); }
+  .legenda .l-altro { background: var(--occupato); }
+  .legenda .l-libero { display: inline-grid; place-items: center; border: 2px dashed var(--verde); color: var(--verde);
+                       font: 800 .9rem/1 var(--titoli); }
+  .legenda .l-libero::before { content: '+'; }
   .legenda .l-cerca { border: 2px solid var(--arancio); background: var(--arancio-tenue); }
 
   /* Classifica */
@@ -176,12 +185,12 @@
   #elenco-classifica { margin: 0; padding: 0; list-style: none; }
   #elenco-classifica li { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 10px;
                           padding: 10px 8px; border-bottom: 1px solid var(--linea); }
-  /* Attività (admin): tutte le azioni, per giorno */
-  #elenco-attivita { margin: 0; padding: 0; list-style: none; }
-  #elenco-attivita li { padding: 8px 0; border-bottom: 1px solid var(--linea); overflow-wrap: anywhere; }
-  #elenco-attivita .titolo { margin-top: 18px; padding-bottom: 4px; border-bottom: 2px solid var(--inchiostro);
+  /* Attività (admin) e passaggi delle chiavi (tutti): le azioni, per giorno */
+  #elenco-attivita, #elenco-chiavi { margin: 0; padding: 0; list-style: none; }
+  #elenco-attivita li, #elenco-chiavi li { padding: 8px 0; border-bottom: 1px solid var(--linea); overflow-wrap: anywhere; }
+  #elenco-attivita .titolo, #elenco-chiavi .titolo { margin-top: 18px; padding-bottom: 4px; border-bottom: 2px solid var(--inchiostro);
                              font: 800 1.15rem/1.2 var(--titoli); }
-  #elenco-attivita .ora { margin-right: 8px; color: var(--grigio); font-weight: 700; }
+  #elenco-attivita .ora, #elenco-chiavi .ora { margin-right: 8px; color: var(--grigio); font-weight: 700; }
   #elenco-classifica li.io { border-radius: 12px; border-bottom-color: transparent; background: var(--rosso-tenue); }
   .posto { display: grid; place-items: center; width: 44px; height: 44px; font: 800 1.3rem/1 var(--titoli); color: var(--grigio); }
   /* La stella del circolo per chi è in testa */
@@ -215,6 +224,32 @@
   #elenco-soci button { flex: 1 1 auto; min-height: 44px; padding: 6px 12px; white-space: nowrap; border: 2px solid var(--linea);
                         border-radius: 12px; background: var(--superficie); font-weight: 700; font-size: .9rem; }
   #elenco-soci .elimina { color: var(--rosso-testo); }
+
+  /* Chiavi: chi le ha è un cartellino da portachiavi, a punta col foro dell'anello */
+  #portachiavi { display: flex; flex-wrap: wrap; gap: 14px 10px; margin: 10px 0 6px; padding: 4px 2px; list-style: none; }
+  .cartellino { position: relative; display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 8px 12px 8px 40px;
+                background: var(--chiave); color: #211f1f; rotate: -1.5deg;
+                clip-path: polygon(18px 0, 100% 0, 100% 100%, 18px 100%, 0 50%); border-radius: 0 12px 12px 0; }
+  .cartellino:nth-child(even) { rotate: 1.2deg; }
+  .cartellino::before { content: ''; position: absolute; left: 14px; top: calc(50% - 7px); width: 14px; height: 14px;
+                        border-radius: 50%; background: var(--sfondo); box-shadow: inset 0 0 0 2px rgb(33 31 31 / .35); }
+  .cartellino .chi { display: block; font: 800 1.15rem/1.15 var(--titoli); }
+  .cartellino small { display: block; font-size: .8rem; line-height: 1.2; }
+  .cartellino button { min-height: 40px; padding: 4px 12px; border: 2px solid #211f1f; border-radius: 10px;
+                       background: transparent; color: #211f1f; font-weight: 700; font-size: .85rem; }
+  #chiavi-vuoto { margin: 8px 0 0; }
+  .chiavi-box { margin-top: 18px; padding: 16px; border: 2px solid var(--linea); border-radius: 14px; }
+  .chiavi-box p { margin: 0 0 12px; }
+  .chiavi-box label { display: block; margin-bottom: 12px; font-weight: 700; }
+  .chiavi-box select { display: block; width: 100%; min-height: 52px; margin-top: 6px; padding: 10px 12px; border: 2px solid var(--linea);
+                       border-radius: 12px; background: var(--superficie); color: inherit; font: inherit; }
+  .chiavi-box.admin { border-style: dashed; }
+  .chiavi-box h3 { margin: 0 0 8px; font: 800 1.1rem/1.2 var(--titoli); }
+  #vista-chiavi .titolo-vista + .nota { margin-top: 0; }
+  #storico-titolo { margin-top: 28px; }
+  /* Consegna da confermare: in cima, in tutte le schede */
+  #chiavi-arrivo { margin: 0 0 18px; }
+  #chiavi-arrivo p { margin: 0 0 12px; }
 
   /* Promemoria */
   .promemoria { margin-top: 24px; padding: 16px; border: 2px solid var(--linea); border-radius: 14px; }
@@ -293,9 +328,17 @@
 
 <main id="agenda" hidden>
   <p class="ciao">Ciao, <strong id="chi"></strong><span id="ruolo" class="ruolo" hidden>admin</span></p>
+  <div id="chiavi-arrivo" class="avviso" role="alert" hidden>
+    <p id="chiavi-arrivo-testo"></p>
+    <div class="azioni">
+      <button id="chiavi-conferma" class="grande">Sì, ho le chiavi</button>
+      <button id="chiavi-rifiuta" class="secondario">No, non le ho ricevute</button>
+    </div>
+  </div>
   <nav class="schede" aria-label="Sezioni">
     <button id="scheda-calendario" aria-pressed="true">Calendario</button>
     <button id="scheda-classifica" aria-pressed="false">Classifica</button>
+    <button id="scheda-chiavi" aria-pressed="false">Chiavi</button>
   </nav>
   <nav id="schede-admin" class="schede admin" aria-label="Amministratore" hidden>
     <button id="scheda-soci" aria-pressed="false">Soci</button>
@@ -320,7 +363,7 @@
       <li><i class="l-altro"></i>Già preso</li>
       <li><i class="l-libero"></i>Libero: tocca per segnarti</li>
       <li><i class="l-cerca"></i>Cercasi sostituto: tocca per prenderlo</li>
-      <li id="legenda-chiuso" hidden><i class="l-chiuso"></i>Circolo chiuso</li>
+      <li id="legenda-chiuso" hidden><i class="l-chiuso"></i>Chiuso: se vuoi aprire tu, toccalo</li>
     </ul>
     <section id="mese-soci" hidden>
       <h2 id="mese-soci-titolo"></h2>
@@ -343,6 +386,22 @@
     <p class="nota">Contano solo i turni già fatti: quelli in programma entrano il giorno dopo.</p>
   </section>
 
+  <section id="vista-chiavi" hidden>
+    <h2 class="titolo-vista">Chi ha le chiavi</h2>
+    <ul id="portachiavi"></ul>
+    <p id="chiavi-vuoto" class="nota" hidden>Ancora nessuno: le segna l'amministratore.</p>
+    <div id="chiavi-mie" class="chiavi-box"></div>
+    <div id="chiavi-admin" class="chiavi-box admin" hidden>
+      <h3>Amministratore</h3>
+      <label>Dai le chiavi a<select id="chiavi-a-chi"></select></label>
+      <button id="chiavi-dai" class="secondario">Segna che ha le chiavi</button>
+    </div>
+    <h2 id="storico-titolo" class="titolo-vista">Passaggi delle chiavi</h2>
+    <p class="nota">Li vedono tutti, dal più recente.</p>
+    <p id="chiavi-stato" class="nota" hidden></p>
+    <ol id="elenco-chiavi"></ol>
+  </section>
+
   <section id="vista-soci" hidden>
     <p id="soci-conta" class="nota"></p>
     <ul id="elenco-soci"></ul>
@@ -350,7 +409,7 @@
 
   <section id="vista-orari" hidden>
     <h2 class="titolo-vista">Orari del circolo</h2>
-    <p class="nota">Li vedono tutti in cima alla pagina. Nel giorno di chiusura nessuno può segnarsi.</p>
+    <p class="nota">Li vedono tutti in cima alla pagina. Il giorno di chiusura si vede in calendario: chi vuole aprire lo stesso può segnarsi.</p>
     <form id="form-orari" class="campi">
       <label>Apre<input id="apre" type="time"></label>
       <label>Chiude<input id="chiude" type="time"></label>
@@ -394,7 +453,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=3'; // ?v=: vedi admin.js
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=4'; // ?v=: vedi admin.js
 import { normalizzaNome, maiuscole, nomeValido, pinValido, chiave } from './profilo.js?v=2'; // ?v=: vedi admin.js
 
 // Config web dalla console Firebase (Impostazioni progetto → Le tue app). Non è segreta.
@@ -421,6 +480,7 @@ let io = null;       // { id, nome, segreto } — segreto = chiave del profilo (
 let admin = false;
 let turni = {};      // 'AAAA-MM-GG' → { id, nome }
 let pannello = null; // solo admin: admin.js
+let portachiavi = null; // scheda Chiavi: chiavi.js
 let anno = new Date().getFullYear();
 let mese = new Date().getMonth();
 let periodo = String(anno); // classifica: 'AAAA' o null = da sempre
@@ -589,12 +649,14 @@ function disegna() {
     const b = el('button', 'giorno');
     const serranda = !t && chiuso(data, orari.chiusura); // un turno già segnato resta visibile
     const cerca = t?.cedo && data >= oggi(); // passato il giorno non si prende più
+    const libero = !t && !serranda && data >= oggi();
     b.append(el('span', 'num', String(Number(data.slice(8)))),
-      el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : '') : serranda ? 'chiuso' : ''));
+      el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : '') : serranda ? 'chiuso' : libero ? '+' : ''));
     b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${cerca ? ', cerca un sostituto' : ''}` : serranda ? 'circolo chiuso' : 'libero'}`);
     if (t) b.classList.add(t.id === io.id ? 'mio' : 'altro');
     if (cerca) b.classList.add('cerca');
     if (serranda) b.classList.add('chiuso');
+    if (libero) b.classList.add('libero');
     if (data < oggi()) b.classList.add('passato');
     if (data === oggi()) b.classList.add('oggi');
     b.onclick = () => tocca(data);
@@ -608,6 +670,7 @@ function disegna() {
   disegnaProssimo();
   disegnaClassifica();
   pannello?.disegnaSoci();
+  portachiavi?.disegna();
 }
 
 // Sotto il calendario, per tutti: ogni socio in ordine alfabetico con i turni segnati nel mese che si sta guardando.
@@ -695,9 +758,9 @@ async function disattivaPromemoria() {
   }
 }
 
-// Schede: 'calendario', 'classifica' o, solo per l'admin, 'soci', 'attivita', 'orari' (le mostra admin.js).
+// Schede: 'calendario', 'classifica', 'chiavi' (chiavi.js) o, solo per l'admin, 'soci', 'attivita', 'orari' (le mostra admin.js).
 function mostraVista(nome) {
-  for (const v of ['calendario', 'classifica', 'soci', 'attivita', 'orari']) {
+  for (const v of ['calendario', 'classifica', 'chiavi', 'soci', 'attivita', 'orari']) {
     $(`vista-${v}`).hidden = v !== nome;
     $(`scheda-${v}`).setAttribute('aria-pressed', String(v === nome));
   }
@@ -710,9 +773,12 @@ async function tocca(data) {
   try {
     if (!t) {
       if (passato) return avvisoBreve('Questo giorno è già passato.');
-      if (chiuso(data, orari.chiusura)) return avvisoBreve(`Il circolo è ${testoChiusura(orari.chiusura)}.`);
       const ore = fascia(orari);
-      if (await chiedi(ore ? `Vuoi segnarti per il turno ${ore}?` : 'Vuoi segnarti per questo turno?', { titolo: quando, ok: 'Segnami', annulla: 'Annulla' })) {
+      // Giorno di chiusura: chi vuole apre lo stesso, con un turno come gli altri.
+      const testo = chiuso(data, orari.chiusura)
+        ? `Il circolo è ${testoChiusura(orari.chiusura)}. Se vuoi aprirlo tu, segnati: il turno lo vedono tutti, come negli altri giorni.`
+        : ore ? `Vuoi segnarti per il turno ${ore}?` : 'Vuoi segnarti per questo turno?';
+      if (await chiedi(testo, { titolo: quando, ok: chiuso(data, orari.chiusura) ? 'Apro io e mi segno' : 'Segnami', annulla: 'Annulla' })) {
         await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome });
         avvisoBreve(`Turno segnato: ${quando}`);
       }
@@ -795,8 +861,11 @@ function mostraAgenda() {
     disegna();
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; $('stato').hidden = false; });
   onSnapshot(doc(db, 'elenco', 'soci'), (snap) => { soci = snap.data()?.soci ?? {}; disegna(); }, () => {}); // senza: niente elenco
+  import('./chiavi.js?v=1') // ?v=: vedi admin.js
+    .then(({ avviaChiavi }) => { portachiavi = avviaChiavi({ db, io, admin, soci: () => soci, $, el, chiedi, avvisoBreve, mostraVista }); })
+    .catch(() => chiedi('Scheda Chiavi non caricata. Ricarica la pagina.', { titolo: 'Errore' }));
   if (admin) {
-    import('./admin.js?v=4') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
+    import('./admin.js?v=5') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
       .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }); })
       .catch(() => chiedi('Pannello admin non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
   }

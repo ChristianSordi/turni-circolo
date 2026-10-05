@@ -20,9 +20,10 @@ export const giornoLeggibile = (s) =>
 // Giorno di chiusura settimanale come getDay (0 = domenica … 6 = sabato); null = sempre aperto.
 export const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
 export const chiuso = (s, chiusura) => chiusura != null && giorno(s).getDay() === chiusura;
-// Turni coperti nel mese: [giorni aperti con un turno, giorni aperti]. I giorni di chiusura non contano.
+// Turni coperti nel mese: [giorni aperti con un turno, giorni aperti]. I giorni di chiusura contano solo se un
+// socio ha deciso di aprire lo stesso (c'è un turno).
 export function coperti(anno, mese, turni, chiusura) {
-  const aperti = griglia(anno, mese).filter((d) => d && !chiuso(d, chiusura));
+  const aperti = griglia(anno, mese).filter((d) => d && (!chiuso(d, chiusura) || turni[d]));
   return [aperti.filter((d) => turni[d]).length, aperti.length];
 }
 export const testoChiusura = (c) => (c == null ? '' : `chiuso ${c === 0 ? 'la' : 'il'} ${GIORNI[c]}`);
@@ -108,3 +109,33 @@ export function titoloGiorno(g, oggi) {
   const t = giornoLeggibile(g);
   return t[0].toUpperCase() + t.slice(1);
 }
+
+// Passaggi delle chiavi da una modifica a chiavi/circolo (chi le ha lo segna l'admin, poi passano di mano). prima/dopo: { chi: id → nome, consegne: id di chi deve
+// confermare → id di chi le ha date }. attore come in movimenti; nomi = elenco/soci per chi non ha le chiavi.
+// La consegna in attesa avvisa solo chi le riceve; l'annullamento non si scrive (le chiavi non si sono mosse).
+export function movimentiChiavi(prima, dopo, attore, nomi = {}) {
+  const nome = (id) => dopo.chi[id] ?? prima.chi[id] ?? nomi[id] ?? 'Un socio';
+  const riga = (socio, azione, altro) => ({ socio, nome: nome(socio), azione, ...(altro && { altro: nome(altro) }) });
+  const righe = [];
+  const fatti = new Set();
+  for (const [b, a] of Object.entries(prima.consegne)) {
+    if (dopo.consegne[b] === a) continue;
+    if (dopo.chi[b] && !prima.chi[b] && prima.chi[a] && !dopo.chi[a]) {
+      righe.push(riga(b, 'riceve', a));
+      fatti.add(a).add(b);
+    } else if (attore === b) righe.push(riga(b, 'rifiuta', a));
+  }
+  for (const id of Object.keys(dopo.chi)) if (!prima.chi[id] && !fatti.has(id)) righe.push(riga(id, 'assegna'));
+  for (const id of Object.keys(prima.chi)) if (!dopo.chi[id] && !fatti.has(id)) righe.push(riga(id, 'toglie'));
+  const notifiche = Object.entries(dopo.consegne).filter(([b, a]) => prima.consegne[b] !== a).map(([b, a]) => ({
+    a: b, titolo: 'Chiavi del circolo', testo: `${nome(a)} dice di averti dato le chiavi del circolo: apri Turni e conferma.` }));
+  return { righe, notifiche };
+}
+
+// Una riga dei passaggi delle chiavi, in parole, per tutti.
+export const fraseChiavi = ({ azione, nome, altro }) => ({
+  assegna: `l'amministratore ha segnato che ${nome} ha le chiavi`,
+  toglie: `l'amministratore ha segnato che ${nome} non ha più le chiavi`,
+  riceve: `${altro} ha dato le chiavi a ${nome}, che ha confermato`,
+  rifiuta: `${nome} dice di non aver ricevuto le chiavi da ${altro}`,
+}[azione] ?? `${nome}: ${azione}`);

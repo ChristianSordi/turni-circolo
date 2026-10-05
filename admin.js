@@ -6,7 +6,7 @@ import { doc, getDocs, onSnapshot, setDoc, deleteDoc, collection, query, where, 
 import { chiave, pinValido } from './profilo.js';
 // ?v=: GitHub Pages lascia i file in cache 10 minuti; senza, un telefono può unire questo admin.js nuovo a un
 // calendario.js vecchio. ponytail: v da aumentare a mano quando calendario.js cambia.
-import { iso, fraseStorico, titoloGiorno } from './calendario.js?v=2';
+import { iso, fraseStorico, titoloGiorno } from './calendario.js?v=4';
 
 export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }) {
   let soci = [];      // [{ id, nome, segreto }]

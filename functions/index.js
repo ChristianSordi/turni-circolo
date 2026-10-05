@@ -6,7 +6,7 @@ import { onDocumentWritten, onDocumentWrittenWithAuthContext } from 'firebase-fu
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 import webpush from 'web-push';
-import { iso, avvisi, movimenti } from './calendario.js'; // copiato dalla radice prima del deploy (firebase.json)
+import { iso, avvisi, movimenti, movimentiChiavi } from './calendario.js'; // copiato dalla radice prima del deploy (firebase.json)
 
 initializeApp();
 
@@ -65,6 +65,23 @@ export const attivita = onDocumentWrittenWithAuthContext({ ...MINIMO, maxInstanc
   const quando = new Date(event.time);
   const batch = db.batch();
   righe.forEach((r, i) => batch.set(db.doc(`attivita/${event.id}-${i}`), { ...r, quando }));
+  await batch.commit();
+  if (notifiche.length) vapid();
+  for (const x of notifiche) await invia(db, x);
+});
+
+// Passaggi delle chiavi, per tutti: chi dice di averle, consegne confermate o rifiutate, scelte dell'admin.
+// A chi deve confermare una consegna arriva un avviso. 1 istanza = in ordine.
+export const chiavi = onDocumentWrittenWithAuthContext({ ...MINIMO, document: 'chiavi/circolo' }, async (event) => {
+  const db = getFirestore();
+  const vuoto = { chi: {}, consegne: {} };
+  const telefono = event.authId ? (await db.doc(`dispositivi/${event.authId}`).get()).data() : null;
+  const nomi = (await db.doc('elenco/soci').get()).data()?.soci;
+  const { righe, notifiche } = movimentiChiavi(event.data.before.data() ?? vuoto, event.data.after.data() ?? vuoto,
+    telefono?.id ?? null, nomi);
+  const quando = new Date(event.time);
+  const batch = db.batch();
+  righe.forEach((r, i) => batch.set(db.doc(`storico-chiavi/${event.id}-${i}`), { ...r, quando }));
   await batch.commit();
   if (notifiche.length) vapid();
   for (const x of notifiche) await invia(db, x);
