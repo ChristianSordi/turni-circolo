@@ -110,32 +110,45 @@ export function titoloGiorno(g, oggi) {
   return t[0].toUpperCase() + t.slice(1);
 }
 
-// Passaggi delle chiavi da una modifica a chiavi/circolo (chi le ha lo segna l'admin, poi passano di mano). prima/dopo: { chi: id → nome, consegne: id di chi deve
-// confermare → id di chi le ha date }. attore come in movimenti; nomi = elenco/soci per chi non ha le chiavi.
-// La consegna in attesa avvisa solo chi le riceve; l'annullamento non si scrive (le chiavi non si sono mosse).
+// Mazzi di chiavi: chiavi/circolo = { chi: id → quanti mazzi, richieste: id di chi la fa → { da, a } }. Una richiesta
+// la fa chi dà un mazzo ("le ho date a…") o chi lo chiede ("le chiedo a…"); l'altro conferma o rifiuta.
+// Prima dei mazzi chi era id → nome: vale un mazzo.
+export const mazzi = (v) => (typeof v === 'number' ? v : v ? 1 : 0);
+
+// Passaggi delle chiavi da una modifica a chiavi/circolo. attore come in movimenti; nomi = elenco/soci.
+// Una richiesta nuova avvisa l'altro; annullare o rifiutare una richiesta non si scrive, tranne chi dice di non
+// aver ricevuto un mazzo che l'altro dice di avergli dato. Il resto dei mazzi in più o in meno è dell'admin.
 export function movimentiChiavi(prima, dopo, attore, nomi = {}) {
-  const nome = (id) => dopo.chi[id] ?? prima.chi[id] ?? nomi[id] ?? 'Un socio';
-  const riga = (socio, azione, altro) => ({ socio, nome: nome(socio), azione, ...(altro && { altro: nome(altro) }) });
-  const righe = [];
-  const fatti = new Set();
-  for (const [b, a] of Object.entries(prima.consegne)) {
-    if (dopo.consegne[b] === a) continue;
-    if (dopo.chi[b] && !prima.chi[b] && prima.chi[a] && !dopo.chi[a]) {
-      righe.push(riga(b, 'riceve', a));
-      fatti.add(a).add(b);
-    } else if (attore === b) righe.push(riga(b, 'rifiuta', a));
+  const nome = (id) => nomi[id] ?? 'Un socio';
+  const [pr, dr] = [prima.richieste ?? {}, dopo.richieste ?? {}];
+  const delta = {};
+  for (const id of new Set([...Object.keys(prima.chi ?? {}), ...Object.keys(dopo.chi ?? {})])) {
+    delta[id] = mazzi(dopo.chi?.[id]) - mazzi(prima.chi?.[id]);
   }
-  for (const id of Object.keys(dopo.chi)) if (!prima.chi[id] && !fatti.has(id)) righe.push(riga(id, 'assegna'));
-  for (const id of Object.keys(prima.chi)) if (!dopo.chi[id] && !fatti.has(id)) righe.push(riga(id, 'toglie'));
-  const notifiche = Object.entries(dopo.consegne).filter(([b, a]) => prima.consegne[b] !== a).map(([b, a]) => ({
-    a: b, titolo: 'Chiavi del circolo', testo: `${nome(a)} dice di averti dato le chiavi del circolo: apri Turni e conferma.` }));
+  const righe = [];
+  for (const [k, { da, a }] of Object.entries(pr)) {
+    if (dr[k]) continue;
+    if (delta[da] < 0 && delta[a] > 0) {
+      righe.push({ socio: a, nome: nome(a), azione: 'riceve', altro: nome(da) });
+      delta[da]++;
+      delta[a]--;
+    } else if (k === da && attore === a) righe.push({ socio: a, nome: nome(a), azione: 'rifiuta', altro: nome(da) });
+  }
+  for (const [id, d] of Object.entries(delta)) {
+    if (d) righe.push({ socio: id, nome: nome(id), azione: d > 0 ? 'assegna' : 'toglie', mazzi: mazzi(dopo.chi?.[id]) });
+  }
+  const notifiche = Object.entries(dr).filter(([k, r]) => pr[k]?.da !== r.da || pr[k]?.a !== r.a).map(([k, { da, a }]) => (k === da
+    ? { a, titolo: 'Chiavi del circolo', testo: `${nome(da)} dice di averti dato le chiavi del circolo: apri Turni e conferma.` }
+    : { a: da, titolo: 'Chiavi del circolo', testo: `${nome(a)} ti chiede le chiavi del circolo: apri Turni e rispondi.` }));
   return { righe, notifiche };
 }
 
-// Una riga dei passaggi delle chiavi, in parole, per tutti.
-export const fraseChiavi = ({ azione, nome, altro }) => ({
-  assegna: `l'amministratore ha segnato che ${nome} ha le chiavi`,
-  toglie: `l'amministratore ha segnato che ${nome} non ha più le chiavi`,
-  riceve: `${altro} ha dato le chiavi a ${nome}, che ha confermato`,
+// Una riga dei passaggi delle chiavi, in parole, per tutti. Le righe di prima dei mazzi non hanno "mazzi".
+const segnato = (nome, n) => `l'amministratore ha segnato che ${nome} ${
+  n === 0 ? 'non ha più le chiavi' : n === 1 ? 'ha un mazzo di chiavi' : `ha ${n} mazzi di chiavi`}`;
+export const fraseChiavi = ({ azione, nome, altro, mazzi: n }) => ({
+  assegna: segnato(nome, n ?? 1),
+  toglie: segnato(nome, n ?? 0),
+  riceve: `${altro} ha dato le chiavi a ${nome}`,
   rifiuta: `${nome} dice di non aver ricevuto le chiavi da ${altro}`,
 }[azione] ?? `${nome}: ${azione}`);

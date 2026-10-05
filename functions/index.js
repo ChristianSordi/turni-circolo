@@ -70,11 +70,11 @@ export const attivita = onDocumentWrittenWithAuthContext({ ...MINIMO, maxInstanc
   for (const x of notifiche) await invia(db, x);
 });
 
-// Passaggi delle chiavi, per tutti: chi dice di averle, consegne confermate o rifiutate, scelte dell'admin.
-// A chi deve confermare una consegna arriva un avviso. 1 istanza = in ordine.
+// Passaggi delle chiavi, per tutti: mazzi passati di mano, consegne rifiutate, mazzi aggiunti o tolti dall'admin.
+// A chi deve rispondere a una richiesta arriva un avviso. 1 istanza = in ordine.
 export const chiavi = onDocumentWrittenWithAuthContext({ ...MINIMO, document: 'chiavi/circolo' }, async (event) => {
   const db = getFirestore();
-  const vuoto = { chi: {}, consegne: {} };
+  const vuoto = { chi: {}, richieste: {} };
   const telefono = event.authId ? (await db.doc(`dispositivi/${event.authId}`).get()).data() : null;
   const nomi = (await db.doc('elenco/soci').get()).data()?.soci;
   const { righe, notifiche } = movimentiChiavi(event.data.before.data() ?? vuoto, event.data.after.data() ?? vuoto,

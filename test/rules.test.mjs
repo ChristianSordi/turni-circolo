@@ -285,51 +285,58 @@ test('admin legato alla persona: con nome e PIN si torna admin su un altro telef
   await assertFails(getDocs(collection(db('bruno'), 'persone')));
 });
 
-// Chiavi del circolo: chiavi/circolo = { chi: id → nome, consegne: id di chi deve confermare → id di chi le ha date }.
+// Mazzi di chiavi: chiavi/circolo = { chi: id → mazzi, richieste: id di chi la fa → { da, a }, fatto }.
 const CHIAVI = (uid) => doc(db(uid), 'chiavi', 'circolo');
-const statoChiavi = (chi, consegne = {}) => env.withSecurityRulesDisabled((ctx) =>
-  setDoc(doc(ctx.firestore(), 'chiavi', 'circolo'), { chi, consegne }));
+const statoChiavi = (chi, richieste = {}) => env.withSecurityRulesDisabled((ctx) =>
+  setDoc(doc(ctx.firestore(), 'chiavi', 'circolo'), { chi, richieste }));
+const scriviChiavi = (uid, chi, richieste, fatto) => setDoc(CHIAVI(uid), { chi, richieste, ...(fatto && { fatto }) });
 
-test('chiavi: le leggono i soci; solo l\'admin dice chi le ha', async () => {
+test('chiavi: le leggono i soci; solo l\'admin aggiunge e toglie mazzi', async () => {
   await assertFails(getDoc(CHIAVI('carla')));
   await assertSucceeds(getDoc(CHIAVI('anna')));
-  await assertFails(setDoc(CHIAVI('anna'), { chi: { anna: 'Anna Rossi' }, consegne: {} })); // documento ancora vuoto
-  await statoChiavi({ anna: 'Anna Rossi' });
-  await assertFails(setDoc(CHIAVI('bruno'), { chi: { anna: 'Anna Rossi', bruno: 'Bruno Bianchi' }, consegne: {} }));
+  await assertFails(scriviChiavi('anna', { anna: 1 }, {})); // documento ancora vuoto
+  await statoChiavi({ anna: 1 });
+  await assertFails(scriviChiavi('anna', {}, {}));          // non se le toglie da sola
+  await assertFails(scriviChiavi('anna', { anna: 2 }, {}));
+  await assertFails(scriviChiavi('bruno', { anna: 1, bruno: 1 }, {}));
   await diventaAdmin('capo');
-  await assertSucceeds(setDoc(CHIAVI('capo'), { chi: { anna: 'Anna Rossi', bruno: 'Bruno Bianchi' }, consegne: {} }));
+  await assertSucceeds(scriviChiavi('capo', { anna: 2, bruno: 1 }, {}));
+  await assertFails(setDoc(CHIAVI('capo'), { chi: {}, richieste: {}, altro: 1 }));
 });
 
-test('chiavi: nessuno se le toglie da solo; l\'admin dà e toglie', async () => {
-  await statoChiavi({ anna: 'Anna Rossi' });
-  await assertFails(setDoc(CHIAVI('anna'), { chi: {}, consegne: {} }));
-  await assertFails(setDoc(CHIAVI('bruno'), { chi: {}, consegne: {} }));
-  await diventaAdmin('capo');
-  await assertSucceeds(setDoc(CHIAVI('capo'), { chi: { bruno: 'Bruno Bianchi' }, consegne: {} }));
-  await assertFails(setDoc(CHIAVI('capo'), { chi: {}, consegne: {}, altro: 1 }));
+test('chiavi: richiesta solo a nome proprio, una alla volta, e chi dà deve averle', async () => {
+  await statoChiavi({ anna: 1 });
+  await assertSucceeds(scriviChiavi('anna', { anna: 1 }, { anna: { da: 'anna', a: 'bruno' } }));
+  await statoChiavi({ anna: 1, bruno: 1 });
+  await assertSucceeds(scriviChiavi('anna', { anna: 1, bruno: 1 }, { anna: { da: 'anna', a: 'bruno' } })); // anche a chi le ha
+  await assertFails(scriviChiavi('anna', { anna: 1, bruno: 1 }, { anna: { da: 'anna', a: 'carla' } }));    // una alla volta
+  await statoChiavi({ anna: 1 });
+  await assertSucceeds(scriviChiavi('bruno', { anna: 1 }, { bruno: { da: 'anna', a: 'bruno' } }));        // le chiede
+  await statoChiavi({ anna: 1 });
+  await assertFails(scriviChiavi('bruno', { anna: 1 }, { bruno: { da: 'carla', a: 'bruno' } }));          // Carla non le ha
+  await assertFails(scriviChiavi('bruno', { anna: 1 }, { anna: { da: 'anna', a: 'bruno' } }));            // a nome di Anna
+  await assertFails(scriviChiavi('bruno', { anna: 1 }, { bruno: { da: 'anna', a: 'carla' } }));           // per conto d'altri
+  await assertFails(scriviChiavi('anna', { anna: 1 }, { anna: { da: 'anna', a: 'anna' } }));
+  await assertFails(scriviChiavi('anna', { anna: 1, bruno: 1 }, { anna: { da: 'anna', a: 'bruno' } }));   // e si dà un mazzo
 });
 
-test('chiavi: le dà solo chi le ha, a chi non le ha, una consegna alla volta', async () => {
-  await statoChiavi({ anna: 'Anna Rossi' });
-  await assertFails(setDoc(CHIAVI('bruno'), { chi: { anna: 'Anna Rossi' }, consegne: { carla: 'bruno' } })); // non le ha
-  await assertFails(setDoc(CHIAVI('anna'), { chi: { anna: 'Anna Rossi' }, consegne: { bruno: 'carla' } })); // a nome di altri
-  await assertFails(setDoc(CHIAVI('anna'), { chi: { anna: 'Anna Rossi' }, consegne: { anna: 'anna' } }));  // a se stessa
-  await assertFails(setDoc(CHIAVI('anna'), { chi: {}, consegne: { bruno: 'anna' } }));                     // e se le toglie subito
-  await assertSucceeds(setDoc(CHIAVI('anna'), { chi: { anna: 'Anna Rossi' }, consegne: { bruno: 'anna' } }));
-  await assertFails(setDoc(CHIAVI('anna'), { chi: { anna: 'Anna Rossi' }, consegne: { bruno: 'anna', carla: 'anna' } }));
-});
-
-test('chiavi: chi le riceve conferma (passano) o rifiuta; chi le ha date annulla', async () => {
-  const attesa = { bruno: 'anna' };
-  await statoChiavi({ anna: 'Anna Rossi' }, attesa);
-  await assertFails(setDoc(CHIAVI('carla'), { chi: { carla: 'Carla Verdi' }, consegne: {} }));
-  await assertFails(setDoc(CHIAVI('bruno'), { chi: { anna: 'Anna Rossi', bruno: 'Bruno Bianchi' }, consegne: {} })); // ad Anna restano
-  await assertFails(setDoc(CHIAVI('anna'), { chi: { bruno: 'Bruno Bianchi' }, consegne: {} })); // conferma solo Bruno
-  await assertSucceeds(setDoc(CHIAVI('bruno'), { chi: { bruno: 'Bruno Bianchi' }, consegne: {} }));
-  await statoChiavi({ anna: 'Anna Rossi' }, attesa);
-  await assertSucceeds(setDoc(CHIAVI('bruno'), { chi: { anna: 'Anna Rossi' }, consegne: {} })); // rifiuta
-  await statoChiavi({ anna: 'Anna Rossi' }, attesa);
-  await assertSucceeds(setDoc(CHIAVI('anna'), { chi: { anna: 'Anna Rossi' }, consegne: {} })); // annulla
+test('chiavi: conferma solo l\'altro, un mazzo passa; annulla chi l\'ha fatta, rifiuta l\'altro', async () => {
+  const dice = { anna: { da: 'anna', a: 'bruno' } };
+  await statoChiavi({ anna: 1, bruno: 1 }, dice);
+  await assertFails(scriviChiavi('anna', { bruno: 2 }, {}, 'anna'));            // non conferma da sola
+  await assertFails(scriviChiavi('carla', { bruno: 2 }, {}, 'anna'));
+  await assertFails(scriviChiavi('bruno', { anna: 1, bruno: 2 }, {}, 'anna'));  // ad Anna resta
+  await assertFails(scriviChiavi('bruno', { bruno: 3 }, {}, 'anna'));
+  await assertSucceeds(scriviChiavi('bruno', { bruno: 2 }, {}, 'anna'));
+  await statoChiavi({ anna: 2 }, { bruno: { da: 'anna', a: 'bruno' } });        // Bruno le chiede, Anna conferma
+  await assertFails(scriviChiavi('bruno', { anna: 1, bruno: 1 }, {}, 'bruno'));
+  await assertSucceeds(scriviChiavi('anna', { anna: 1, bruno: 1 }, {}, 'bruno'));
+  for (const chi of ['anna', 'bruno']) {                                        // annulla o rifiuta
+    await statoChiavi({ anna: 1 }, dice);
+    await assertSucceeds(scriviChiavi(chi, { anna: 1 }, {}, 'anna'));
+  }
+  await statoChiavi({ anna: 1 }, dice);
+  await assertFails(scriviChiavi('carla', { anna: 1 }, {}, 'anna'));
 });
 
 test('passaggi delle chiavi: li leggono tutti i soci, nessuno li scrive dall\'app', async () => {

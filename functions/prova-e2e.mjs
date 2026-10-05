@@ -101,16 +101,17 @@ await db.doc('persone/chiave-bruno').delete();
 await elenco.run({});
 assert.deepEqual(Object.keys((await db.doc('elenco/soci').get()).data().soci).sort(), ['anna', 'capo']);
 
-// Chiavi: l'admin le dà ad Anna, le dà a Bruno (avviso a Bruno), Bruno conferma; documento cancellato dalla console.
+// Chiavi: l'admin dà un mazzo ad Anna, lei lo dà a Bruno (avviso a Bruno), Bruno conferma.
 const evChiavi = (prima, dopo, authId) => ({ ...evento(prima, dopo, authId), params: {} });
-const ha = { chi: { anna: 'Anna Rossi' }, consegne: {} };
-const consegna = { chi: { anna: 'Anna Rossi' }, consegne: { bruno: 'anna' } };
+await db.doc('elenco/soci').set({ soci: { anna: 'Anna Rossi', bruno: 'Bruno Bianchi' } });
+const ha = { chi: { anna: 1 }, richieste: {} };
+const consegna = { chi: { anna: 1 }, richieste: { anna: { da: 'anna', a: 'bruno' } } };
 await db.doc('persone/chiave-bruno').set({ ...BRUNO }); // tolto dalla prova dell'elenco
 inviate.length = 0;
 await passaggiChiavi.run(evChiavi(null, ha, 'capo'));
 await passaggiChiavi.run(evChiavi(ha, consegna, 'anna'));
 assert.deepEqual(inviate.map((i) => `${i.endpoint} ${i.titolo}`), ['https://push.prova/bruno Chiavi del circolo']);
-await passaggiChiavi.run(evChiavi(consegna, { chi: { bruno: 'Bruno Bianchi' }, consegne: {} }, 'bruno'));
+await passaggiChiavi.run(evChiavi(consegna, { chi: { bruno: 1 }, richieste: {} }, 'bruno'));
 const passaggi = (await db.collection('storico-chiavi').get()).docs.map((d) => d.data())
   .sort((a, b) => a.quando.toMillis() - b.quando.toMillis());
 assert.deepEqual(passaggi.map((r) => `${r.nome}:${r.azione}:${r.altro ?? ''}`),

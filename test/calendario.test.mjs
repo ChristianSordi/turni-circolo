@@ -138,30 +138,41 @@ test('coperti: ottobre 2026 ha 4 lunedì; un lunedì aperto da un socio conta', 
   assert.deepEqual(coperti(2026, 9, turni, null), [3, 31]); // sempre aperto
 });
 
-test('chiavi: l\'admin le dà e le toglie', () => {
-  const vuoto = { chi: {}, consegne: {} };
-  assert.deepEqual(movimentiChiavi(vuoto, { chi: { anna: 'Anna Rossi' }, consegne: {} }, 'capo').righe,
-    [{ socio: 'anna', nome: 'Anna Rossi', azione: 'assegna' }]);
-  assert.deepEqual(movimentiChiavi({ chi: { anna: 'Anna Rossi' }, consegne: {} }, vuoto, null).righe,
-    [{ socio: 'anna', nome: 'Anna Rossi', azione: 'toglie' }]);
+const NOMI = { anna: 'Anna Rossi', bruno: 'Bruno Bianchi' };
+
+test('chiavi: l\'admin aggiunge e toglie mazzi; i vecchi nomi valgono un mazzo', () => {
+  const vuoto = { chi: {}, richieste: {} };
+  assert.deepEqual(movimentiChiavi(vuoto, { chi: { anna: 1 }, richieste: {} }, 'capo', NOMI).righe,
+    [{ socio: 'anna', nome: 'Anna Rossi', azione: 'assegna', mazzi: 1 }]);
+  assert.deepEqual(movimentiChiavi({ chi: { anna: 2 }, richieste: {} }, { chi: { anna: 1 }, richieste: {} }, 'capo', NOMI).righe,
+    [{ socio: 'anna', nome: 'Anna Rossi', azione: 'toglie', mazzi: 1 }]);
+  // Conversione da { id: nome } a { id: 1 }: nessun passaggio.
+  assert.deepEqual(movimentiChiavi({ chi: { anna: 'Anna Rossi' }, consegne: {} }, { chi: { anna: 1 }, richieste: {} }, null, NOMI),
+    { righe: [], notifiche: [] });
 });
 
-test('chiavi: consegna con avviso, poi conferma o rifiuto; l\'annullamento non si scrive', () => {
-  const nomi = { bruno: 'Bruno Bianchi' };
-  const ha = { chi: { anna: 'Anna Rossi' }, consegne: {} };
-  const inAttesa = { chi: { anna: 'Anna Rossi' }, consegne: { bruno: 'anna' } };
-  assert.deepEqual(movimentiChiavi(ha, inAttesa, 'anna', nomi), { righe: [], notifiche: [{ a: 'bruno',
-    titolo: 'Chiavi del circolo', testo: 'Anna Rossi dice di averti dato le chiavi del circolo: apri Turni e conferma.' }] });
-  assert.deepEqual(movimentiChiavi(inAttesa, { chi: { bruno: 'Bruno Bianchi' }, consegne: {} }, 'bruno', nomi).righe,
-    [{ socio: 'bruno', nome: 'Bruno Bianchi', azione: 'riceve', altro: 'Anna Rossi' }]);
-  assert.deepEqual(movimentiChiavi(inAttesa, ha, 'bruno', nomi).righe,
+test('chiavi: le dà chi le ha (anche a chi ne ha già) o le chiede chi non le ha; conferma l\'altro', () => {
+  const da = { chi: { anna: 1, bruno: 1 }, richieste: {} };
+  const dice = { ...da, richieste: { anna: { da: 'anna', a: 'bruno' } } };
+  const chiede = { ...da, richieste: { bruno: { da: 'anna', a: 'bruno' } } };
+  assert.deepEqual(movimentiChiavi(da, dice, 'anna', NOMI).notifiche, [{ a: 'bruno', titolo: 'Chiavi del circolo',
+    testo: 'Anna Rossi dice di averti dato le chiavi del circolo: apri Turni e conferma.' }]);
+  assert.deepEqual(movimentiChiavi(da, chiede, 'bruno', NOMI).notifiche, [{ a: 'anna', titolo: 'Chiavi del circolo',
+    testo: 'Bruno Bianchi ti chiede le chiavi del circolo: apri Turni e rispondi.' }]);
+  const passato = { chi: { bruno: 2 }, richieste: {} };
+  for (const [prima, chi] of [[dice, 'bruno'], [chiede, 'anna']]) {
+    assert.deepEqual(movimentiChiavi(prima, passato, chi, NOMI).righe,
+      [{ socio: 'bruno', nome: 'Bruno Bianchi', azione: 'riceve', altro: 'Anna Rossi' }]);
+  }
+  assert.deepEqual(movimentiChiavi(dice, da, 'bruno', NOMI).righe,
     [{ socio: 'bruno', nome: 'Bruno Bianchi', azione: 'rifiuta', altro: 'Anna Rossi' }]);
-  assert.deepEqual(movimentiChiavi(inAttesa, ha, 'anna', nomi), { righe: [], notifiche: [] });
+  assert.deepEqual(movimentiChiavi(dice, da, 'anna', NOMI), { righe: [], notifiche: [] });   // annulla
+  assert.deepEqual(movimentiChiavi(chiede, da, 'anna', NOMI), { righe: [], notifiche: [] }); // dice di no alla richiesta
 });
 
-test('fraseChiavi: frasi intere con i nomi', () => {
-  assert.equal(fraseChiavi({ azione: 'assegna', nome: 'Anna Rossi' }), 'l\'amministratore ha segnato che Anna Rossi ha le chiavi');
-  assert.equal(fraseChiavi({ azione: 'riceve', nome: 'Bruno Bianchi', altro: 'Anna Rossi' }),
-    'Anna Rossi ha dato le chiavi a Bruno Bianchi, che ha confermato');
+test('fraseChiavi: frasi intere con i nomi, anche per le righe di prima dei mazzi', () => {
+  assert.equal(fraseChiavi({ azione: 'assegna', nome: 'Anna Rossi' }), 'l\'amministratore ha segnato che Anna Rossi ha un mazzo di chiavi');
+  assert.equal(fraseChiavi({ azione: 'assegna', nome: 'Anna Rossi', mazzi: 2 }), 'l\'amministratore ha segnato che Anna Rossi ha 2 mazzi di chiavi');
   assert.equal(fraseChiavi({ azione: 'toglie', nome: 'Anna Rossi' }), 'l\'amministratore ha segnato che Anna Rossi non ha più le chiavi');
+  assert.equal(fraseChiavi({ azione: 'riceve', nome: 'Bruno Bianchi', altro: 'Anna Rossi' }), 'Anna Rossi ha dato le chiavi a Bruno Bianchi');
 });

@@ -122,37 +122,47 @@ service cloud.firestore {
         && request.time > resource.data.ultimo + duration.value(30, 'm');
     }
 
-    // Chiavi del circolo, le vedono tutti i soci. chi: id → nome di chi le ha; consegne: id di chi deve confermare →
-    // id di chi gliele ha date. Solo l'admin dice chi ha le chiavi. Un socio non se le toglie da solo: le passa a un
-    // altro, che conferma. I passaggi li scrive functions/index.js in storico-chiavi.
+    // Mazzi di chiavi del circolo, li vedono tutti i soci. chi: id → quanti mazzi; richieste: id di chi la fa →
+    // { da, a } (un mazzo da chi lo dà a chi lo riceve), una per socio; fatto: la richiesta su cui si agisce.
+    // Solo l'admin aggiunge e toglie mazzi. Un socio non se li toglie da solo: li passa a un altro, che conferma.
+    // I passaggi li scrive functions/index.js in storico-chiavi.
+    // Nuova richiesta: "le ho date a…" (da chi le ha) o "le chiedo a…" (a chi le ha).
+    function richiestaNuova(io, prima, dopo) {
+      let q = dopo.richieste[io];
+      return dopo.chi == prima.chi && !(io in prima.richieste)
+        && dopo.richieste.diff(prima.richieste).affectedKeys() == [io].toSet()
+        && q.keys().hasOnly(['da', 'a']) && q.da is string && q.a is string && q.da != q.a
+        && (q.da == io || q.a == io) && prima.chi.get(q.da, 0) >= 1;
+    }
+    // Annulla (chi l'ha fatta) o rifiuta (l'altro): la richiesta sparisce, i mazzi restano.
+    function richiestaTolta(io, k, prima, dopo) {
+      return dopo.chi == prima.chi && !(k in dopo.richieste)
+        && dopo.richieste.diff(prima.richieste).affectedKeys() == [k].toSet()
+        && (k == io || prima.richieste[k].da == io || prima.richieste[k].a == io);
+    }
+    // Conferma (solo l'altro): un mazzo passa da chi lo dà a chi lo riceve.
+    function richiestaConfermata(io, k, q, prima, dopo) {
+      return k != io && (q.da == io || q.a == io) && !(k in dopo.richieste)
+        && dopo.richieste.diff(prima.richieste).affectedKeys() == [k].toSet()
+        && dopo.chi.diff(prima.chi).affectedKeys() == [q.da, q.a].toSet()
+        && prima.chi.get(q.da, 0) >= 1
+        && dopo.chi.get(q.a, 0) == prima.chi.get(q.a, 0) + 1
+        && (prima.chi[q.da] == 1 ? !(q.da in dopo.chi) : dopo.chi[q.da] == prima.chi[q.da] - 1);
+    }
     function passaggioChiavi() {
-      let io = persona(dispositivo().segreto);
-      let prima = resource == null ? { 'chi': {}, 'consegne': {} } : resource.data;
+      let io = persona(dispositivo().segreto).id;
+      let prima = resource == null ? { 'chi': {}, 'richieste': {} } : resource.data;
       let dopo = request.resource.data;
-      let chi = dopo.chi.diff(prima.chi);
-      let cons = dopo.consegne.diff(prima.consegne);
-      let soloConsegne = chi.affectedKeys().size() == 0 && cons.changedKeys().size() == 0;
-      return
-        // "Le ho date a…": chi le ha, una consegna alla volta, a chi non le ha e non ne aspetta già un'altra.
-        (soloConsegne && io.id in prima.chi && !(io.id in prima.consegne.values())
-          && cons.removedKeys().size() == 0 && cons.addedKeys().size() == 1
-          && cons.addedKeys().intersection(prima.chi.keys().toSet()).size() == 0
-          && io.id in dopo.consegne.values())
-        // Annulla (chi le ha date) o rifiuta (chi doveva riceverle): la consegna sparisce, le chiavi restano.
-        || (soloConsegne && cons.addedKeys().size() == 0 && cons.removedKeys().size() == 1
-          && (cons.removedKeys() == [io.id].toSet()
-            || (io.id in prima.consegne.values() && !(io.id in dopo.consegne.values()))))
-        // Conferma: le chiavi passano da chi le ha date a chi le riceve.
-        || (io.id in prima.consegne && !(io.id in prima.chi)
-          && cons.affectedKeys() == [io.id].toSet() && cons.removedKeys() == [io.id].toSet()
-          && chi.changedKeys().size() == 0 && chi.addedKeys() == [io.id].toSet()
-          && chi.removedKeys() == [prima.consegne[io.id]].toSet() && dopo.chi[io.id] == io.nome);
+      let k = dopo.get('fatto', '');
+      return richiestaNuova(io, prima, dopo)
+        || (k in prima.richieste
+          && (richiestaTolta(io, k, prima, dopo) || richiestaConfermata(io, k, prima.richieste[k], prima, dopo)));
     }
     match /chiavi/{id} {
       allow read: if exists(/databases/$(database)/documents/persone/$(dispositivo().segreto));
       allow create, update: if id == 'circolo'
-        && request.resource.data.keys().hasOnly(['chi', 'consegne'])
-        && request.resource.data.chi is map && request.resource.data.consegne is map
+        && request.resource.data.keys().hasOnly(['chi', 'richieste', 'fatto'])
+        && request.resource.data.chi is map && request.resource.data.richieste is map
         && (isAdmin() || passaggioChiavi());
     }
     match /storico-chiavi/{id} {

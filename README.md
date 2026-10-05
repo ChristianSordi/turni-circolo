@@ -20,10 +20,12 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
 - **Vuoi prendere il turno di un altro?** Tocca un giorno arancione → "Prendo io il turno".
 - **Giorno di chiusura:** la casella è a righe con scritto "chiuso". Se vuoi aprire lo stesso, toccala →
   "Apro io e mi segno": il turno lo vedono tutti come gli altri.
-- **Chiavi del circolo:** la scheda **Chiavi** mostra chi le ha e tutti i passaggi. Chi le ha lo segna
-  l'amministratore: se le hai e non sei nell'elenco, diglielo. Quando le dai a un altro socio, scegli a chi e tocca "Ho dato le chiavi":
-  passano all'altro socio solo quando conferma (la richiesta compare in cima all'app, e arriva un avviso se ha i promemoria). Da solo
-  nessuno si toglie le chiavi.
+- **Chiavi del circolo:** la scheda **Chiavi** dice in cima se hai le chiavi. Se le hai, quando le dai a un altro
+  socio (anche a chi ne ha già un mazzo, se le ha lasciate a casa) scegli a chi e tocca "Ho dato le chiavi". Se non le
+  hai, scegli a chi chiederle e tocca "Chiedi le chiavi". In tutti e due i casi le chiavi passano solo quando l'altro
+  conferma: la richiesta gli compare in cima all'app, e gli arriva un avviso se ha i promemoria. Sotto c'è chi ha le
+  chiavi adesso e, in fondo, tutti i passaggi. Da solo nessuno si toglie le chiavi; se le hai e non sei nell'elenco,
+  dillo all'amministratore.
 - **Promemoria sul telefono** (una settimana prima e il giorno prima del turno): in fondo al calendario
   tocca "Attiva promemoria" e accetta le notifiche. Su **Android** basta Chrome. Su **iPhone** (iOS 16.4
   o successivo) prima tocca Condividi → "Aggiungi alla schermata Home", apri Turni dall'icona e rientra
@@ -58,9 +60,10 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
 - **Orari e giorno di chiusura:** scheda **Orari** → "Salva orari".
   Gli orari compaiono in cima alla pagina per tutti; il giorno di chiusura è a righe in calendario, ma chi vuole
   aprire lo stesso può segnarsi (conta nei "turni coperti" del mese).
-- **Chiavi:** nella scheda **Chiavi** l'admin segna chi ha le chiavi ("Segna che ha le chiavi") o le toglie
-  ("Togli" sul cartellino). Ogni passaggio (anche dell'admin) finisce in "Passaggi delle chiavi", che vedono tutti:
-  lo scrive la funzione `chiavi`. Se un socio dice di non aver ricevuto le chiavi, resta scritto lì.
+- **Chiavi:** la scheda **Chiavi** dell'admin è quella di tutti, più il riquadro "Amministratore": scegli il socio e
+  tocca "Aggiungi un mazzo" o "Togli un mazzo". Di solito un socio ha un mazzo; il numero si vede solo quando sono di
+  più. Ogni passaggio (anche dell'admin) finisce in "Passaggi delle chiavi", che vedono tutti: lo scrive la funzione
+  `chiavi`. Se un socio dice di non aver ricevuto le chiavi che un altro dice di avergli dato, resta scritto lì.
 - **Link del circolo finito in mani sbagliate:** cambia il codice del circolo nelle regole (vedi sotto)
   e manda il link nuovo nel gruppo. Chi è già iscritto non si accorge di nulla.
 
