@@ -607,8 +607,9 @@ async function entra() {
     try {
       return (await chiediAlServer(dati)).data;
     } catch (e) {
-      const { minuti, motivo } = e.details ?? {};
-      erroreIngresso(minuti ? `Troppi PIN sbagliati con questo nome: riprova tra ${minuti === 1 ? '1 minuto' : `${minuti} minuti`}, oppure chiedi all'amministratore di reimpostare il PIN.`
+      const { minuti, motivo, fermo } = e.details ?? {};
+      erroreIngresso(fermo ? 'Troppi PIN sbagliati con questo nome: chiedi all\'amministratore di reimpostare il PIN.'
+        : minuti ? `Troppi PIN sbagliati con questo nome: riprova tra ${minuti === 1 ? '1 minuto' : `${minuti} minuti`}, oppure chiedi all'amministratore di reimpostare il PIN.`
         : motivo === 'chiuse' ? 'Le iscrizioni sono chiuse: chiedi all\'amministratore di aprirle, poi riprova.'
         : motivo === 'link' ? 'Link del circolo non valido o scaduto: chiedi quello nuovo nel gruppo.'
         : 'Controlla la connessione e riprova.');

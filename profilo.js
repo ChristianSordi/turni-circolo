@@ -20,10 +20,13 @@ export async function chiave(nome, pin) {
 }
 
 // Contro chi prova i 10 000 PIN: gli errori si contano per nome (non per telefono, che si rifà gratis) in
-// functions/index.js. Dopo 5 errori 15 minuti di attesa dall'ultimo, il doppio ogni altri 5, al massimo 16 ore.
-// Un PIN giusto o il reset dell'admin azzerano il conto.
+// functions/index.js. Dopo 5 errori 15 minuti di attesa dall'ultimo, 30 dopo 10, un'ora dopo 15; a 20 il nome è
+// fermo (Infinity) finché l'admin non reimposta il PIN: al massimo 20 PIN provati per socio. Un PIN giusto o il reset
+// dell'admin azzerano il conto.
+export const ERRORI_MAX = 20;
 export const idTentativi = (nome) => encodeURIComponent(normalizzaNome(nome).toLowerCase());
 export function attesa(errori, ultimo, ora) {
+  if (errori >= ERRORI_MAX) return Infinity;
   if (errori < 5) return 0;
-  return Math.max(0, ultimo + 15 * 60e3 * 2 ** Math.min(Math.floor(errori / 5) - 1, 6) - ora);
+  return Math.max(0, ultimo + 15 * 60e3 * 2 ** (Math.floor(errori / 5) - 1) - ora);
 }

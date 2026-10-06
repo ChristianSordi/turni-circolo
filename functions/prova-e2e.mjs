@@ -141,6 +141,21 @@ assert.equal((await db.doc(`tentativi/${idTentativi('Nessuno Mai')}`).get()).exi
 await db.doc(`tentativi/${idTentativi('Dina Neri')}`).update({ ultimo: new Date(Date.now() - 16 * 60e3) });
 assert.equal((await prova('x8', { nome: 'Dina Neri', pin: '1234' })).io.id, 'dina');
 
+// A 20 errori il nome è fermo anche col tempo e col PIN giusto; l'admin (capo) riceve un avviso, una volta sola.
+await db.doc('admin/capo').set({ chiave: 'x' });
+await db.doc(`tentativi/${idTentativi('Dina Neri')}`).set({ errori: 18, ultimo: new Date(Date.now() - 2 * 3600e3) });
+inviate.length = 0;
+await prova('z1', { nome: 'Dina Neri', pin: '0009' }); // 19
+await db.doc(`tentativi/${idTentativi('Dina Neri')}`).update({ ultimo: new Date(Date.now() - 2 * 3600e3) });
+await prova('z2', { nome: 'Dina Neri', pin: '0010' }); // 20: fermo
+assert.deepEqual(inviate.map((i) => `${i.endpoint} ${i.titolo}`), ['https://push.prova/capo Troppi PIN sbagliati']);
+assert.match(inviate[0].testo, /Dina Neri/);
+await db.doc(`tentativi/${idTentativi('Dina Neri')}`).update({ ultimo: new Date(Date.now() - 400 * 24 * 3600e3) });
+try { await prova('z3', { nome: 'Dina Neri', pin: '1234' }); assert.fail(); } catch (e) { assert.deepEqual(e.details, { fermo: true }); }
+assert.equal(inviate.length, 1);
+await db.doc(`tentativi/${idTentativi('Dina Neri')}`).delete(); // come il reset PIN dell'admin
+assert.equal((await prova('z4', { nome: 'Dina Neri', pin: '1234' })).io.id, 'dina');
+
 // Iscrizione: solo col codice giusto e a iscrizioni aperte; il telefono già collegato non si reiscrive.
 const ezio = { nome: 'ezio verdi', pin: '4321', codice: 'codice-prova' };
 assert.equal(await errore('tel-ezio', ezio), 'permission-denied'); // chiuse

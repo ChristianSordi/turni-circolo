@@ -12,7 +12,7 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
 - **Telefono nuovo o pagina che non ti riconosce più:** apri la pagina e scrivi gli stessi nome,
   cognome e PIN: ritrovi i tuoi turni. Maiuscole e spazi non contano.
 - **PIN dimenticato:** chiedi all'amministratore di reimpostarlo. Dopo 5 PIN sbagliati con lo stesso nome bisogna
-  aspettare 15 minuti (di più se si continua a sbagliare); col PIN reimpostato si entra subito.
+  aspettare 15 minuti (di più se si continua a sbagliare; dopo 20 serve il reset); col PIN reimpostato si entra subito.
 - **Ti chiede nome e PIN ogni volta?** Il telefono non lascia salvare i dati: l'app lo dice nella schermata di
   ingresso. Su iPhone: Impostazioni → Safari → disattiva «Blocca tutti i cookie»; niente navigazione privata.
 - **Non puoi più fare un turno?** Tocca il tuo giorno → "Cerco un sostituto". Il giorno diventa arancione
@@ -72,12 +72,14 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
 - **Link del circolo finito in mani sbagliate:** cambia `CODICE_CIRCOLO` in `functions/.env` (e in
   `segreti.local.txt`), ripubblica le funzioni (vedi sotto) e manda il link nuovo nel gruppo. Chi è già iscritto non
   si accorge di nulla.
-- **Socio bloccato da troppi PIN sbagliati:** "Reimposta PIN" lo sblocca. Se qualcuno prova a indovinare il PIN di
-  un socio, quel nome resta bloccato per un po': chi ha già l'app aperta sul telefono non se ne accorge.
+- **Socio bloccato da troppi PIN sbagliati:** "Reimposta PIN" lo sblocca. A 20 PIN sbagliati il nome resta bloccato
+  finché non lo reimposti, e all'admin arriva un avviso (se ha i promemoria attivi): se non è stato il socio, qualcuno
+  sta provando a indovinare il suo PIN. Chi ha già l'app aperta sul telefono non se ne accorge.
 
 Contro chi prova i PIN a raffica: nome e PIN li controlla la funzione `entra` (Cloud Functions), non il telefono,
 che non può leggere i profili degli altri. Gli errori si contano per nome dei soci (`tentativi/`): dopo 5 si aspetta
-15 minuti, poi il doppio ogni altri 5 errori, fino a 16 ore (`attesa` in `profilo.js`). Un PIN giusto o il reset
+15 minuti, poi il doppio ogni altri 5 errori; a 20 il nome è fermo fino al reset (`attesa` in `profilo.js`): al
+massimo 20 PIN provati per socio. Un PIN giusto o il reset
 dell'admin azzerano il conto.
 
 ## Regole di sicurezza

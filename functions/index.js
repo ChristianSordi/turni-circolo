@@ -8,7 +8,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 import webpush from 'web-push';
 import { iso, avvisi, movimenti, movimentiChiavi } from './calendario.js'; // copiati dalla radice prima del deploy (firebase.json)
-import { maiuscole, nomeValido, pinValido, chiave, idTentativi, attesa } from './profilo.js';
+import { maiuscole, nomeValido, pinValido, chiave, idTentativi, attesa, ERRORI_MAX } from './profilo.js';
 
 initializeApp();
 
@@ -45,7 +45,8 @@ async function invia(db, { a, tranne, titolo, testo }) {
 // solo: gli errori si contano per nome in tentativi/ e dopo 5 si aspetta (profilo.js, attesa). Si contano solo sui
 // nomi dei soci (elenco/soci): un nome nuovo non rivela nulla, e chi si iscrive non parte già con degli errori.
 // Con codice: iscrizione, solo a iscrizioni aperte dall'admin. Risponde { io } se entra, { iscrizioni: aperte? } se
-// non lo trova; errori: resource-exhausted { minuti }, permission-denied { motivo: 'chiuse' | 'link' }.
+// non lo trova; errori: resource-exhausted { minuti } o { fermo } (20 errori: l'admin riceve un avviso),
+// permission-denied { motivo: 'chiuse' | 'link' }.
 export const entra = onCall({ ...MINIMO, maxInstances: 3 }, async (req) => {
   const uid = req.auth?.uid;
   const { nome, pin, codice } = req.data ?? {};
@@ -61,28 +62,45 @@ export const entra = onCall({ ...MINIMO, maxInstances: 3 }, async (req) => {
       telefono, db.doc('elenco/soci'));
     const { errori = 0, ultimo } = t.data() ?? {};
     const minuti = Math.ceil(attesa(errori, ultimo?.toMillis() ?? 0, Date.now()) / 60e3);
-    if (minuti > 0) return { minuti }; // anche col PIN giusto: altrimenti il blocco direbbe qual è
+    if (minuti === Infinity) return { fermo: true }; // anche col PIN giusto: altrimenti il blocco direbbe qual è
+    if (minuti > 0) return { minuti };
     if (p.exists) {
       const io = { id: p.data().id, nome: p.data().nome, segreto };
       tx.delete(conto);
       tx.set(telefono, { id: io.id, segreto });
       return { io };
     }
-    const socio = Object.values(el.data()?.soci ?? {}).some((n) => idTentativi(n) === idTentativi(nome));
+    const socio = Object.values(el.data()?.soci ?? {}).find((n) => idTentativi(n) === idTentativi(nome));
     if (socio) tx.set(conto, { errori: errori + 1, ultimo: new Date() });
+    const avvisa = socio && errori + 1 === ERRORI_MAX ? socio : null; // appena fermato: una volta sola
     const aperte = isc.data()?.fino?.toMillis() > Date.now();
-    if (codice === undefined) return { iscrizioni: aperte };
+    if (codice === undefined) return { iscrizioni: aperte, avvisa };
     // Un telefono già collegato non si reiscrive: dopo un reset PIN non riprende l'identità (id = suo uid).
-    if (codice !== process.env.CODICE_CIRCOLO || !aperte || d.exists) return { negata: aperte ? 'link' : 'chiuse' };
+    if (codice !== process.env.CODICE_CIRCOLO || !aperte || d.exists) return { negata: aperte ? 'link' : 'chiuse', avvisa };
     const io = { id: uid, nome: maiuscole(nome), segreto };
     tx.create(db.doc(`persone/${segreto}`), { id: io.id, nome: io.nome });
     tx.set(telefono, { id: io.id, segreto });
-    return { io };
+    return { io, avvisa };
   });
+  const { avvisa, ...risposta } = esito;
+  if (avvisa) await avvisaAdmin(db, avvisa).catch((e) => console.error('Avviso agli admin non inviato', e));
+  if (esito.fermo) throw new HttpsError('resource-exhausted', 'nome fermo', { fermo: true });
   if (esito.minuti) throw new HttpsError('resource-exhausted', 'troppi tentativi', { minuti: esito.minuti });
   if (esito.negata) throw new HttpsError('permission-denied', 'iscrizione negata', { motivo: esito.negata });
-  return esito;
+  return risposta;
 });
+
+// Avviso agli admin (admin/{id}: uid del telefono o id del socio) quando un nome si ferma per troppi PIN sbagliati.
+async function avvisaAdmin(db, nome) {
+  vapid();
+  const ids = new Set();
+  for (const a of (await db.collection('admin').get()).docs) {
+    ids.add((await db.doc(`dispositivi/${a.id}`).get()).data()?.id ?? a.id);
+  }
+  for (const a of ids) {
+    await invia(db, { a, titolo: 'Troppi PIN sbagliati', testo: `Con il nome ${nome} sono stati provati ${ERRORI_MAX} PIN sbagliati: il nome è bloccato. Se non è stato il socio, qualcuno ci sta provando. Per sbloccarlo: Soci → Reimposta PIN.` });
+  }
+}
 
 export const promemoria = onSchedule({ ...MINIMO, schedule: 'every day 09:00', timeZone: 'Europe/Rome', retryCount: 0 }, async () => {
   const db = getFirestore();

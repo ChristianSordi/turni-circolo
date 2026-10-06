@@ -41,7 +41,7 @@ test('maiuscole: solo la prima lettera di nome e cognome', async () => {
   assert.equal(await chiave(maiuscole('GABRIELE MASSACCESI'), '1234'), await chiave('GABRIELE MASSACCESI', '1234'));
 });
 
-test('blocco dopo 5 PIN sbagliati per nome: 15 minuti, poi raddoppia ogni 5 errori, al massimo 16 ore', () => {
+test('blocco dopo 5 PIN sbagliati per nome: 15 minuti, poi raddoppia ogni 5 errori; a 20 fermo', () => {
   const m = 60e3;
   assert.equal(attesa(4, 0, 0), 0);
   assert.equal(attesa(5, 0, 0), 15 * m);
@@ -49,7 +49,10 @@ test('blocco dopo 5 PIN sbagliati per nome: 15 minuti, poi raddoppia ogni 5 erro
   assert.equal(attesa(9, 0, 15 * m), 0);
   assert.equal(attesa(10, 0, 0), 30 * m);
   assert.equal(attesa(15, 0, 0), 60 * m);
-  assert.equal(attesa(500, 0, 0), 16 * 60 * m);
+  assert.equal(attesa(19, 0, 0), 60 * m);
+  assert.equal(attesa(20, 0, 0), Infinity);
+  assert.equal(attesa(20, 0, 365 * 24 * 60 * m), Infinity); // non passa col tempo
+  assert.equal(attesa(500, 0, 0), Infinity);
 });
 
 test('idTentativi: stesso nome comunque scritto, niente barre', () => {
