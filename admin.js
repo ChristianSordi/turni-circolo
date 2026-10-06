@@ -1,7 +1,7 @@
-// Pannello dell'amministratore: le schede Soci (turni, accessi, storico, reset PIN, elimina), Attività (le azioni
+// Pannello dell'amministratore: le schede Soci (iscrizioni, turni, accessi, storico, reset PIN, elimina), Attività (le azioni
 // di tutti) e Orari del circolo.
 // Lo carica index.html solo per l'admin. Stessi URL di Firebase di index.html: altrimenti db non è riconosciuto.
-import { doc, getDocs, onSnapshot, setDoc, deleteDoc, collection, query, where, orderBy, limit, writeBatch }
+import { doc, getDocs, onSnapshot, setDoc, deleteDoc, collection, query, where, orderBy, limit, writeBatch, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { chiave, pinValido } from './profilo.js';
 // ?v=: GitHub Pages lascia i file in cache 10 minuti; senza, un telefono può unire questo admin.js nuovo a un
@@ -111,6 +111,32 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
     await caricaSoci();
   }
 
+  // Iscrizioni: chiuse finché l'admin non le apre, per 24 ore; si possono chiudere subito. Le blocca firestore.rules.
+  let scadenza;
+  function disegnaIscrizioni(fino) {
+    clearTimeout(scadenza);
+    const aperte = fino > Date.now();
+    if (aperte) scadenza = setTimeout(() => disegnaIscrizioni(fino), fino - Date.now()); // si richiudono da sole
+    const f = new Date(fino);
+    const giorno = iso(f) === iso(new Date()) ? 'oggi' : 'domani';
+    $('iscrizioni-stato').textContent = aperte ? 'Iscrizioni aperte' : 'Iscrizioni chiuse';
+    $('iscrizioni-nota').textContent = aperte
+      ? `Chi ha il link del circolo può iscriversi fino a ${giorno} alle ${f.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}, poi si chiudono da sole.`
+      : 'Chi è già iscritto entra lo stesso. Per un socio nuovo aprile: restano aperte 24 ore.';
+    const b = $('iscrizioni-pulsante');
+    b.textContent = aperte ? 'Chiudi subito' : 'Apri le iscrizioni per 24 ore';
+    b.classList.toggle('pericolo', aperte);
+    b.onclick = async () => {
+      b.disabled = true;
+      try {
+        await setDoc(doc(db, 'impostazioni', 'iscrizioni'), { fino: aperte ? serverTimestamp() : new Date(Date.now() + 864e5) });
+      } catch {
+        await chiedi('Controlla la connessione e riprova.', { titolo: aperte ? 'Iscrizioni non chiuse' : 'Iscrizioni non aperte' });
+      }
+      b.disabled = false;
+    };
+  }
+
   async function salvaOrari(e) {
     e.preventDefault();
     const [apre, chiude, c] = [$('apre').value, $('chiude').value, $('chiusura').value];
@@ -164,6 +190,8 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
   $('scheda-orari').onclick = () => mostraVista('orari');
   $('form-orari').onsubmit = salvaOrari;
   caricaSoci();
+  // fino è null finché il server non conferma la chiusura: vale già chiuse.
+  onSnapshot(doc(db, 'impostazioni', 'iscrizioni'), (snap) => disegnaIscrizioni(snap.data()?.fino?.toMillis() ?? 0), () => {});
   // Accessi dal vivo: l'app dell'admin resta aperta per ore (iPhone), letti una volta sola restano vecchi.
   onSnapshot(collection(db, 'accessi'), (snap) => {
     accessi = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));

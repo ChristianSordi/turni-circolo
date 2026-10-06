@@ -247,6 +247,7 @@
   .chiavi-box select, #d-socio { display: block; width: 100%; min-height: 52px; margin-top: 6px; padding: 10px 12px; border: 2px solid var(--linea);
                        border-radius: 12px; background: var(--superficie); color: inherit; font: inherit; }
   .chiavi-box.admin { border-style: dashed; }
+  #iscrizioni { margin: 0 0 18px; }
   .chiavi-box h3 { margin: 0 0 8px; font: 800 1.1rem/1.2 var(--titoli); }
   .chiavi-box .due { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   #storico-titolo { margin-top: 28px; }
@@ -416,6 +417,11 @@
   </section>
 
   <section id="vista-soci" hidden>
+    <div id="iscrizioni" class="chiavi-box admin">
+      <h3 id="iscrizioni-stato"></h3>
+      <p id="iscrizioni-nota"></p>
+      <button id="iscrizioni-pulsante" class="secondario"></button>
+    </div>
     <p id="soci-conta" class="nota"></p>
     <ul id="elenco-soci"></ul>
   </section>
@@ -603,6 +609,12 @@ async function entra(uid) {
     }
     if (!codice) {
       erroreIngresso('Non ti abbiamo trovato: controlla nome, cognome e PIN. Se sei nuovo, apri il link del circolo che trovi nel gruppo WhatsApp.');
+      continue;
+    }
+    // Iscrizioni chiuse: lo blocca anche firestore.rules, qui solo il messaggio giusto.
+    const fino = (await getDoc(doc(db, 'impostazioni', 'iscrizioni'))).data()?.fino;
+    if (!(fino?.toMillis() > Date.now())) {
+      erroreIngresso('Non ti abbiamo trovato. Se sei già iscritto, ricontrolla nome, cognome e PIN. Se sei nuovo, le iscrizioni sono chiuse: chiedi all\'amministratore di aprirle, poi riprova.');
       continue;
     }
     if (!await chiedi('Se sei nuovo, iscriviti. Se sei già iscritto, ricontrolla nome, cognome e PIN.', {
@@ -897,7 +909,7 @@ function mostraAgenda() {
     .then(({ avviaChiavi }) => { portachiavi = avviaChiavi({ db, io, admin, soci: () => soci, $, el, chiedi, avvisoBreve, mostraVista }); })
     .catch(() => chiedi('Scheda Chiavi non caricata. Ricarica la pagina.', { titolo: 'Errore' }));
   if (admin) {
-    import('./admin.js?v=7') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
+    import('./admin.js?v=8') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
       .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }); })
       .catch(() => chiedi('Pannello admin non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
   }

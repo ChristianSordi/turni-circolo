@@ -64,6 +64,10 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
   tocca "Aggiungi un mazzo" o "Togli un mazzo". Di solito un socio ha un mazzo; il numero si vede solo quando sono di
   più. Ogni passaggio (anche dell'admin) finisce in "Passaggi delle chiavi", che vedono tutti: lo scrive la funzione
   `chiavi`. Se un socio dice di non aver ricevuto le chiavi che un altro dice di avergli dato, resta scritto lì.
+- **Iscrizioni:** sono chiuse; chi è già iscritto entra lo stesso (anche da un telefono nuovo). Per un socio nuovo:
+  scheda **Soci** → "Apri le iscrizioni per 24 ore", poi si richiudono da sole; "Chiudi subito" le chiude prima.
+  Il blocco è nelle regole (`impostazioni/iscrizioni`, campo `fino`): col link del circolo e le iscrizioni chiuse
+  non si entra. Senza il documento le iscrizioni sono chiuse.
 - **Link del circolo finito in mani sbagliate:** cambia il codice del circolo nelle regole (vedi sotto)
   e manda il link nuovo nel gruppo. Chi è già iscritto non si accorge di nulla.
 
@@ -142,7 +146,8 @@ python3 -m http.server 8000    # poi apri http://localhost:8000/?circolo=CODICE-
 5. Impostazioni progetto → Le tue app → Web `</>` → copia `firebaseConfig` in `index.html` (non è segreta).
 6. GitHub → Settings → Pages → Branch `master` / root → Save.
 7. Authentication → Impostazioni → Domini autorizzati → aggiungi `<utente>.github.io`.
-8. Diventa admin (vedi sopra) e manda nel gruppo `https://<utente>.github.io/<repo>/?circolo=<codice>`,
+8. Diventa admin (vedi sopra; il primo profilo crealo a mano in `persone` o apri prima `impostazioni/iscrizioni`
+   dalla console), apri le iscrizioni dalla scheda **Soci** e manda nel gruppo `https://<utente>.github.io/<repo>/?circolo=<codice>`,
    raccomandando di ricordare il PIN e di aggiungere la pagina alla schermata Home.
 
 </details>

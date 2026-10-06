@@ -26,6 +26,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'dispositivi', 'anna'), { id: 'anna', segreto: CHIAVE_ANNA });
     await setDoc(doc(db, 'persone', CHIAVE_BRUNO), { id: 'bruno', nome: 'Bruno Bianchi', codice: CODICE });
     await setDoc(doc(db, 'dispositivi', 'bruno'), { id: 'bruno', segreto: CHIAVE_BRUNO });
+    await setDoc(doc(db, 'impostazioni', 'iscrizioni'), { fino: new Date(Date.now() + 3600e3) });
   });
 });
 
@@ -42,6 +43,27 @@ test('iscrizione con il codice del circolo', async () => {
 test('senza codice del circolo giusto non ci si iscrive', async () => {
   await assertFails(setDoc(doc(db('carla'), 'persone', 'chiave-senza-0123456789'), { id: 'carla', nome: 'Carla Verdi' }));
   await assertFails(setDoc(doc(db('carla'), 'persone', 'chiave-errata-0123456789'), { id: 'carla', nome: 'Carla Verdi', codice: 'vecchio' }));
+});
+
+test('iscrizioni chiuse (mai aperte o scadute): nemmeno col codice', async () => {
+  const carla = () => setDoc(doc(db('carla'), 'persone', 'chiave-carla-0123456789'), { id: 'carla', nome: 'Carla Verdi', codice: CODICE });
+  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'impostazioni', 'iscrizioni')));
+  await assertFails(carla());
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'impostazioni', 'iscrizioni'), { fino: new Date(Date.now() - 1000) }));
+  await assertFails(carla());
+  // Chi è già iscritto entra lo stesso da un telefono nuovo.
+  await assertSucceeds(setDoc(doc(db('anna-nuovo'), 'dispositivi', 'anna-nuovo'), { id: 'anna', segreto: CHIAVE_ANNA }));
+});
+
+test('iscrizioni: le apre e chiude solo l\'admin, le legge chiunque', async () => {
+  const iscrizioni = (uid) => doc(db(uid), 'impostazioni', 'iscrizioni');
+  await assertFails(setDoc(iscrizioni('anna'), { fino: new Date(Date.now() + 86400e3) }));
+  await diventaAdmin('capo');
+  await assertSucceeds(setDoc(iscrizioni('capo'), { fino: new Date(Date.now() + 86400e3) }));
+  await assertSucceeds(setDoc(iscrizioni('capo'), { fino: serverTimestamp() }));
+  await assertFails(setDoc(iscrizioni('capo'), { fino: 'sempre' }));
+  await assertFails(setDoc(iscrizioni('capo'), { fino: serverTimestamp(), extra: 1 }));
+  await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'impostazioni', 'iscrizioni')));
 });
 
 test('non ci si iscrive con id di un altro', async () => {
