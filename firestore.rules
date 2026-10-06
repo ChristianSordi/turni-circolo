@@ -18,6 +18,11 @@ service cloud.firestore {
       return nome is string && nome.size() <= 60 && nome.matches('^[^ ]+( [^ ]+)+$');
     }
 
+    // Fino alle 22:00 UTC del giorno (23 d'inverno, mezzanotte d'estate): niente turni segnati o tolti a posteriori.
+    function entroIlGiorno(data) {
+      return request.time < timestamp.date(int(data.split('-')[0]), int(data.split('-')[1]), int(data.split('-')[2])) + duration.value(22, 'h');
+    }
+
     // Profilo: la chiave è SHA-256 di nome + PIN. Si legge solo conoscendola; l'elenco solo l'admin.
     match /persone/{chiave} {
       allow get: if request.auth != null;
@@ -51,15 +56,18 @@ service cloud.firestore {
     match /turni/{data} {
       // Solo dispositivi collegati a un profilo ancora esistente (dopo un reset PIN il vecchio non legge più).
       allow read: if exists(/databases/$(database)/documents/persone/$(dispositivo().segreto));
+      // Il socio segna solo sé stesso e solo fino al giorno; l'admin segna chiunque, anche nei giorni passati.
       allow create: if data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && request.resource.data.keys().hasOnly(['id', 'nome'])
-        && request.resource.data.id == persona(dispositivo().segreto).id
-        && request.resource.data.nome == persona(dispositivo().segreto).nome;
+        && ((isAdmin() && request.resource.data.id is string && nomeValido(request.resource.data.nome))
+          || (entroIlGiorno(data)
+            && request.resource.data.id == persona(dispositivo().segreto).id
+            && request.resource.data.nome == persona(dispositivo().segreto).nome));
       // Profilo ancora esistente: dopo un reset PIN il vecchio dispositivo non cancella più.
-      allow delete: if isAdmin() || resource.data.id == persona(dispositivo().segreto).id;
+      // Passato il giorno il turno lo toglie solo l'admin.
+      allow delete: if isAdmin() || (resource.data.id == persona(dispositivo().segreto).id && entroIlGiorno(data));
       // "Cerco un sostituto": il titolare mette o toglie cedo; un altro socio prende il turno che lo cerca.
-      // Solo fino alle 22:00 UTC del giorno (23 d'inverno, mezzanotte d'estate): niente turni presi a posteriori.
-      allow update: if request.time < timestamp.date(int(data.split('-')[0]), int(data.split('-')[1]), int(data.split('-')[2])) + duration.value(22, 'h')
+      allow update: if entroIlGiorno(data)
         && (
           (resource.data.id == persona(dispositivo().segreto).id
             && request.resource.data.keys().hasOnly(['id', 'nome', 'cedo'])

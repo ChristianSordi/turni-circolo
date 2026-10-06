@@ -93,6 +93,7 @@ test('movimenti: segna, toglie, tolto dall\'admin, tolto da chi non si sa', () =
   assert.equal(movimenti(SAB, ANNA, null, 'capo').righe[0].azione, 'tolto-admin');
   assert.equal(movimenti(SAB, ANNA, null, null).righe[0].azione, 'tolto');
   assert.equal(movimenti(SAB, null, ANNA, null).righe[0].azione, 'segna');
+  assert.equal(movimenti(SAB, null, ANNA, 'capo').righe[0].azione, 'segnato-admin');
 });
 
 test('movimenti: cerca un sostituto avvisa tutti tranne chi cede', () => {

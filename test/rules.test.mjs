@@ -6,7 +6,8 @@ import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, incr
 const CHIAVE_ANNA = 'chiave-anna-0123456789';
 const CHIAVE_BRUNO = 'chiave-bruno-0123456789';
 const NUOVA_ANNA = 'chiave-anna-nuova-0123456789';
-const GIORNO = '2026-10-12';
+const traGiorni = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const GIORNO = traGiorni(6);
 const CODICE = 'CODICE-CIRCOLO';
 let env;
 
@@ -129,9 +130,9 @@ test('dopo il reset: vecchio PIN tagliato fuori, nuovo PIN ritrova i turni', asy
   await setDoc(doc(db('capo'), 'persone', NUOVA_ANNA), { id: 'anna', nome: 'Anna Rossi' });
   await deleteDoc(doc(db('capo'), 'persone', CHIAVE_ANNA));
   await assertFails(deleteDoc(doc(db('anna'), 'turni', GIORNO)));
-  await assertFails(setDoc(doc(db('anna'), 'turni', '2026-10-14'), { id: 'anna', nome: 'Anna Rossi' }));
+  await assertFails(setDoc(doc(db('anna'), 'turni', traGiorni(8)), { id: 'anna', nome: 'Anna Rossi' }));
   await assertSucceeds(setDoc(doc(db('anna'), 'dispositivi', 'anna'), { id: 'anna', segreto: NUOVA_ANNA }));
-  await assertSucceeds(setDoc(doc(db('anna'), 'turni', '2026-10-14'), { id: 'anna', nome: 'Anna Rossi' }));
+  await assertSucceeds(setDoc(doc(db('anna'), 'turni', traGiorni(8)), { id: 'anna', nome: 'Anna Rossi' }));
   await assertSucceeds(deleteDoc(doc(db('anna'), 'turni', GIORNO)));
 });
 
@@ -187,7 +188,6 @@ test('promemoria: ognuno iscrive solo il proprio telefono, a nome suo', async ()
 });
 
 const NOMI = { anna: 'Anna Rossi', bruno: 'Bruno Bianchi' };
-const traGiorni = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 const FUTURO = traGiorni(10);
 const PASSATO = '2020-01-06';
 const semina = (giorno, dati) => env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'turni', giorno), dati));
@@ -221,6 +221,19 @@ test('giorni passati: niente cerca sostituto né prendere', async () => {
   await assertFails(scrivi('anna', PASSATO, { id: 'anna', nome: NOMI.anna, cedo: true }));
   await semina(PASSATO, { id: 'anna', nome: NOMI.anna, cedo: true });
   await assertFails(scrivi('bruno', PASSATO, { id: 'bruno', nome: NOMI.bruno }));
+});
+
+test('giorni passati: il socio non segna né toglie, l\'admin segna chiunque e toglie', async () => {
+  await assertFails(scrivi('anna', PASSATO, { id: 'anna', nome: NOMI.anna }));
+  await semina(PASSATO, { id: 'anna', nome: NOMI.anna });
+  await assertFails(deleteDoc(doc(db('anna'), 'turni', PASSATO)));
+  await diventaAdmin('capo');
+  await assertSucceeds(deleteDoc(doc(db('capo'), 'turni', PASSATO)));
+  await assertFails(scrivi('capo', PASSATO, { id: 'bruno', nome: 'Bruno' })); // nome e cognome
+  await assertFails(scrivi('capo', PASSATO, { id: 'bruno', nome: NOMI.bruno, cedo: true }));
+  await assertSucceeds(scrivi('capo', PASSATO, { id: 'bruno', nome: NOMI.bruno }));
+  await assertSucceeds(scrivi('capo', FUTURO, { id: 'anna', nome: NOMI.anna }));
+  await assertFails(scrivi('bruno', '2020-01-07', { id: 'anna', nome: NOMI.anna }));
 });
 
 test('un turno che cerca sostituto si toglie come gli altri', async () => {

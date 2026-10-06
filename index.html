@@ -239,7 +239,7 @@
   .chiavi-box { margin-top: 18px; padding: 16px; border: 2px solid var(--linea); border-radius: 14px; }
   .chiavi-box p { margin: 0 0 12px; }
   .chiavi-box label { display: block; margin-bottom: 12px; font-weight: 700; }
-  .chiavi-box select { display: block; width: 100%; min-height: 52px; margin-top: 6px; padding: 10px 12px; border: 2px solid var(--linea);
+  .chiavi-box select, #d-socio { display: block; width: 100%; min-height: 52px; margin-top: 6px; padding: 10px 12px; border: 2px solid var(--linea);
                        border-radius: 12px; background: var(--superficie); color: inherit; font: inherit; }
   .chiavi-box.admin { border-style: dashed; }
   .chiavi-box h3 { margin: 0 0 8px; font: 800 1.1rem/1.2 var(--titoli); }
@@ -271,6 +271,7 @@
   dialog h2::first-letter { text-transform: uppercase; }
   dialog p { margin: 0 0 16px; }
   #d-testo { white-space: pre-line; }
+  #d-socio { margin: 0 0 16px; font-size: 1.15rem; }
   #d-input { display: block; width: 100%; margin-bottom: 16px; padding: 12px; border: 2px solid var(--inchiostro);
              border-radius: 12px; background: transparent; font: 800 1.6rem/1 var(--titoli); letter-spacing: .5em; }
   .azioni { display: grid; gap: 8px; }
@@ -445,6 +446,7 @@
     <h2 id="d-titolo"></h2>
     <p id="d-testo"></p>
     <input id="d-input" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Nuovo PIN" hidden>
+    <select id="d-socio" aria-label="Socio" hidden></select>
     <div class="azioni">
       <button id="d-ok" class="grande" value="ok"></button>
       <button id="d-altro" class="secondario pericolo" value="altro" hidden></button>
@@ -459,7 +461,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=5'; // ?v=: vedi admin.js
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=6'; // ?v=: vedi admin.js
 import { normalizzaNome, maiuscole, nomeValido, pinValido, chiave } from './profilo.js?v=2'; // ?v=: vedi admin.js
 
 // Config web dalla console Firebase (Impostazioni progetto → Le tue app). Non è segreta.
@@ -504,14 +506,20 @@ let soci = {};       // elenco/soci: id → nome, lo tiene aggiornato functions/
 const breve = (nome) => { const [n, c] = nome.split(' '); return c ? `${n}\n${c.length > 3 ? c.slice(0, 3) + '.' : c}` : n; }; // "Mario Ros." nelle caselle
 
 // Al posto di alert/confirm/prompt: finestra con pulsanti grandi, uno sotto l'altro.
-// Risolve true (ok), 'altro' (terzo pulsante), false; o il testo se c'è input.
-function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = null, input = false } = {}) {
+// Risolve true (ok), 'altro' (terzo pulsante), false; o il testo se c'è input; o l'id scelto se c'è socio (id di partenza).
+function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = null, input = false, socio = null } = {}) {
   const d = $('dialogo');
   $('d-titolo').textContent = titolo;
   $('d-titolo').hidden = !titolo;
   $('d-testo').textContent = testo;
   $('d-input').hidden = !input;
   $('d-input').value = '';
+  $('d-socio').hidden = !socio;
+  if (socio) {
+    $('d-socio').replaceChildren(...Object.entries({ ...soci, [io.id]: io.nome }).sort(([, a], [, b]) => a.localeCompare(b, 'it'))
+      .map(([id, nome]) => { const o = el('option', '', nome); o.value = id; return o; }));
+    $('d-socio').value = socio;
+  }
   $('d-ok').textContent = ok;
   $('d-altro').textContent = altro ?? '';
   $('d-altro').hidden = !altro;
@@ -522,7 +530,8 @@ function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = 
   return new Promise((fine) => {
     d.onclose = () => {
       const si = d.returnValue === 'ok';
-      fine(input ? (si ? $('d-input').value.trim() : undefined) : d.returnValue === 'altro' ? 'altro' : si);
+      fine(input ? (si ? $('d-input').value.trim() : undefined) : socio ? (si ? $('d-socio').value : undefined)
+        : d.returnValue === 'altro' ? 'altro' : si);
     };
   });
 }
@@ -655,7 +664,7 @@ function disegna() {
     const b = el('button', 'giorno');
     const serranda = !t && chiuso(data, orari.chiusura); // un turno già segnato resta visibile
     const cerca = t?.cedo && data >= oggi(); // passato il giorno non si prende più
-    const libero = !t && !serranda && data >= oggi();
+    const libero = !t && !serranda && (data >= oggi() || admin); // l'admin segna anche i giorni passati
     b.append(el('span', 'num', String(Number(data.slice(8)))),
       el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : '') : serranda ? 'chiuso' : libero ? '+' : ''));
     b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${cerca ? ', cerca un sostituto' : ''}` : serranda ? 'circolo chiuso' : 'libero'}`);
@@ -778,7 +787,15 @@ async function tocca(data) {
   const passato = data < oggi();
   try {
     if (!t) {
-      if (passato) return avvisoBreve('Questo giorno è già passato.');
+      if (passato && !admin) return avvisoBreve('Questo giorno è già passato.');
+      if (admin) { // segna chiunque, anche nei giorni passati
+        const id = await chiedi(passato ? 'Il giorno è passato. Scegli chi ha fatto il turno.' : 'Scegli chi fa il turno.', {
+          titolo: quando, ok: 'Segna il turno', annulla: 'Annulla', socio: io.id });
+        if (!id) return;
+        const nome = id === io.id ? io.nome : soci[id];
+        await setDoc(doc(db, 'turni', data), { id, nome });
+        return avvisoBreve(`Turno di ${nome} segnato: ${quando}`);
+      }
       const ore = fascia(orari);
       // Giorno di chiusura: chi vuole apre lo stesso, con un turno come gli altri.
       const testo = chiuso(data, orari.chiusura)
@@ -867,11 +884,11 @@ function mostraAgenda() {
     disegna();
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; $('stato').hidden = false; });
   onSnapshot(doc(db, 'elenco', 'soci'), (snap) => { soci = snap.data()?.soci ?? {}; disegna(); }, () => {}); // senza: niente elenco
-  import('./chiavi.js?v=2') // ?v=: vedi admin.js
+  import('./chiavi.js?v=3') // ?v=: vedi admin.js
     .then(({ avviaChiavi }) => { portachiavi = avviaChiavi({ db, io, admin, soci: () => soci, $, el, chiedi, avvisoBreve, mostraVista }); })
     .catch(() => chiedi('Scheda Chiavi non caricata. Ricarica la pagina.', { titolo: 'Errore' }));
   if (admin) {
-    import('./admin.js?v=6') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
+    import('./admin.js?v=7') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
       .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }); })
       .catch(() => chiedi('Pannello admin non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
   }

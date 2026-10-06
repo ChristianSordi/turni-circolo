@@ -65,7 +65,7 @@ export const avvisi = (oggi, turni, orari = {}) =>
 export function movimenti(giorno, prima, dopo, attore, orari = {}) {
   const riga = (t, azione, altro) => ({ socio: t.id, nome: t.nome, azione, giorno, ...(altro && { altro }) });
   const solo = (r) => ({ righe: [r], notifiche: [] });
-  if (!prima) return solo(riga(dopo, 'segna'));
+  if (!prima) return solo(riga(dopo, attore && attore !== dopo.id ? 'segnato-admin' : 'segna'));
   if (!dopo) return solo(riga(prima, attore === null ? 'tolto' : attore === prima.id ? 'toglie' : 'tolto-admin'));
   if (prima.id !== dopo.id) {
     return {
@@ -91,6 +91,7 @@ export function fraseStorico({ azione, giorno, altro, importato }) {
     segna: `ha segnato ${g}`,
     toglie: `ha tolto ${g}`,
     'tolto-admin': `l'amministratore ha tolto ${g}`,
+    'segnato-admin': `l'amministratore ha segnato ${g}`,
     tolto: `è stato tolto ${g}`,
     cerca: `cerca un sostituto per ${g}`,
     ritira: `farà ${g}: non cerca più un sostituto`,
