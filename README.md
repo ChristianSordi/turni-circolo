@@ -27,6 +27,13 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
   conferma: la richiesta gli compare in cima all'app, e gli arriva un avviso se ha i promemoria. Sotto c'è chi ha le
   chiavi adesso e, in fondo, tutti i passaggi. Da solo nessuno si toglie le chiavi; se le hai e non sei nell'elenco,
   dillo all'amministratore.
+- **Incasso della serata** (se l'amministratore ha acceso il registro): a fine turno tocca il riquadro rosso in cima
+  ("Inserisci l'incasso"), oppure il giorno nel calendario, oppure la scheda **Incassi**. Scrivi l'incasso e il fondo
+  cassa lasciato per domani (banconote e monete), controlla, conferma, e poi fai il foglietto per la cassetta. Si può
+  inserire fino all'orario di apertura del giorno dopo, anche se chiude un altro al posto del turnista (resta scritto
+  chi l'ha inserito). Non si cancella: chi l'ha inserito e il turnista possono correggerlo fino ad allora, con il motivo.
+  Chiunque apre il pomeriggio e cambia il fondo nel cassetto lo aggiorna da **Incassi** → "Aggiorna il fondo cassa".
+  Ogni modifica la vedono tutti, con chi, quando e perché.
 - **Promemoria sul telefono** (una settimana prima e il giorno prima del turno): in fondo al calendario
   tocca "Attiva promemoria" e accetta le notifiche. Su **Android** basta Chrome. Su **iPhone** (iOS 16.4
   o successivo) prima tocca Condividi → "Aggiungi alla schermata Home", apri Turni dall'icona e rientra
@@ -58,9 +65,13 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
   vai nella console Firebase → Firestore ed elimina `accessi/<id del socio>` e i documenti di `attivita` con
   `socio` = quell'id (filtra sul campo). L'id lo vedi in `persone` prima di eliminare, o nel campo `socio` delle sue righe in `attivita`.
   Da quel telefono non potrà più iscriversi: se deve tornare, lo fa da un altro browser o telefono.
-- **Orari e giorno di chiusura:** scheda **Orari** → "Salva orari".
+- **Orari e giorno di chiusura:** scheda **Circolo** → "Salva orari".
   Gli orari compaiono in cima alla pagina per tutti; il giorno di chiusura è a righe in calendario, ma chi vuole
   aprire lo stesso può segnarsi (conta nei "turni coperti" del mese).
+- **Registro degli incassi:** scheda **Circolo** → "Incassi attivi" (e, se vuoi, "Avviso alle 11 se manca l'incasso
+  della sera prima", al turnista e all'admin). Lo scrive solo la funzione `incasso`: dal telefono nessuno, nemmeno
+  l'admin, scrive in `incassi/`. L'admin inserisce e corregge anche le serate passate. "Stampa il mese/l'anno" dalla
+  scheda **Incassi** (dal telefono anche in PDF).
 - **Chiavi:** la scheda **Chiavi** dell'admin è quella di tutti, più il riquadro "Amministratore": scegli il socio e
   tocca "Aggiungi un mazzo" o "Togli un mazzo". Di solito un socio ha un mazzo; il numero si vede solo quando sono di
   più. Ogni passaggio (anche dell'admin) finisce in "Passaggi delle chiavi", che vedono tutti: lo scrive la funzione

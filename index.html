@@ -285,7 +285,7 @@
 
   #avviso-breve { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); width: max-content;
                   max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 14px; background: var(--inchiostro);
-                  color: var(--su-inchiostro); font-weight: 700; }
+                  color: var(--su-inchiostro); font-weight: 700; pointer-events: none; }
   @media (prefers-reduced-motion: no-preference) {
     dialog[open] { animation: sale .2s ease-out; }
     #avviso-breve:not([hidden]) { animation: sale .2s ease-out; }
