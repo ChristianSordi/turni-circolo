@@ -23,35 +23,27 @@ service cloud.firestore {
       return request.time < timestamp.date(int(data.split('-')[0]), int(data.split('-')[1]), int(data.split('-')[2])) + duration.value(22, 'h');
     }
 
-    // Profilo: la chiave è SHA-256 di nome + PIN. Si legge solo conoscendola; l'elenco solo l'admin.
+    // Profilo: la chiave è SHA-256 di nome + PIN. Il telefono legge solo il proprio; l'elenco solo l'admin.
+    // Ingresso e iscrizione passano da functions/index.js (entra), che conta i PIN sbagliati per nome.
     match /persone/{chiave} {
-      allow get: if request.auth != null;
+      allow get: if chiave == dispositivo().segreto;
       allow list, delete: if isAdmin();
-      allow create: if request.auth != null
+      // Reset PIN: l'admin ricrea il profilo con la nuova chiave e lo stesso id.
+      allow create: if isAdmin()
         && chiave.size() >= 20
         && nomeValido(request.resource.data.nome)
-        && (
-          // Iscrizione. Sostituisci CODICE-CIRCOLO SOLO nella console Firebase, mai nel repo.
-          (request.resource.data.keys().hasOnly(['id', 'nome', 'codice'])
-            && request.resource.data.codice == 'CODICE-CIRCOLO'
-            && request.resource.data.id == request.auth.uid
-            // Iscrizioni aperte dall'admin (Soci → Apri le iscrizioni), fino all'ora scritta in "fino".
-            && request.time < get(/databases/$(database)/documents/impostazioni/iscrizioni).data.fino
-            // Un dispositivo già collegato non si reiscrive: dopo un reset PIN non si riprende l'identità.
-            && !exists(/databases/$(database)/documents/dispositivi/$(request.auth.uid)))
-          // Reset PIN: l'admin ricrea il profilo con la nuova chiave e lo stesso id.
-          || (isAdmin()
-            && request.resource.data.keys().hasOnly(['id', 'nome'])
-            && request.resource.data.id is string)
-        );
+        && request.resource.data.keys().hasOnly(['id', 'nome'])
+        && request.resource.data.id is string;
     }
 
-    // Collega un dispositivo (uid anonimo) a un profilo: serve la sua chiave.
+    // Telefono (uid anonimo) → profilo: lo scrive solo functions/index.js (entra).
     match /dispositivi/{uid} {
       allow read: if request.auth.uid == uid;
-      allow create, update: if request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['id', 'segreto'])
-        && persona(request.resource.data.segreto).id == request.resource.data.id;
+    }
+
+    // PIN sbagliati per nome: li scrive solo functions/index.js; l'admin li azzera col reset PIN.
+    match /tentativi/{nome} {
+      allow delete: if isAdmin();
     }
 
     // Un documento per giorno: "create" riesce solo se il giorno è libero.

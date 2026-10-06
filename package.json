@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "firebase emulators:exec --only firestore --project demo-turni \"node --test\"",
-    "e2e": "cp calendario.js functions/ && firebase emulators:exec --only firestore --project demo-turni \"node functions/prova-e2e.mjs\"",
-    "emulatori": "firebase emulators:start --only auth,firestore --project demo-turni"
+    "e2e": "cp calendario.js profilo.js functions/ && firebase emulators:exec --only firestore --project demo-turni \"node functions/prova-e2e.mjs\"",
+    "emulatori": "cp calendario.js profilo.js functions/ && firebase emulators:start --only auth,firestore,functions --project demo-turni"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",

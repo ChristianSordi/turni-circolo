@@ -4,7 +4,7 @@
     "source": "functions",
     "runtime": "nodejs22",
     "ignore": ["node_modules", "*-debug.log", "prova-e2e.mjs", "importa-storico.js"],
-    "predeploy": ["cp \"$PROJECT_DIR/calendario.js\" \"$RESOURCE_DIR/calendario.js\""]
+    "predeploy": ["cp \"$PROJECT_DIR/calendario.js\" \"$PROJECT_DIR/profilo.js\" \"$RESOURCE_DIR/\""]
   },
   "emulators": {
     "auth": { "port": 9099 },

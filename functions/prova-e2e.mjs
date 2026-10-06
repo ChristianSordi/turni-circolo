@@ -6,11 +6,11 @@ import webpush from 'web-push';
 process.env.TZ = 'Europe/Rome';
 process.env.GCLOUD_PROJECT = 'demo-turni';
 const chiavi = webpush.generateVAPIDKeys();
-Object.assign(process.env, { VAPID_PUBLIC: chiavi.publicKey, VAPID_PRIVATE: chiavi.privateKey });
+Object.assign(process.env, { VAPID_PUBLIC: chiavi.publicKey, VAPID_PRIVATE: chiavi.privateKey, CODICE_CIRCOLO: 'codice-prova' });
 const inviate = [];
 webpush.sendNotification = async (sub, payload) => { inviate.push({ endpoint: sub.endpoint, ...JSON.parse(payload) }); };
 
-const { promemoria, attivita, elenco, chiavi: passaggiChiavi } = await import('./index.js');
+const { promemoria, attivita, elenco, chiavi: passaggiChiavi, entra } = await import('./index.js');
 const { getFirestore } = await import('firebase-admin/firestore');
 const { iso } = await import('./calendario.js');
 const db = getFirestore();
@@ -116,5 +116,41 @@ const passaggi = (await db.collection('storico-chiavi').get()).docs.map((d) => d
   .sort((a, b) => a.quando.toMillis() - b.quando.toMillis());
 assert.deepEqual(passaggi.map((r) => `${r.nome}:${r.azione}:${r.altro ?? ''}`),
   ['Anna Rossi:assegna:', 'Bruno Bianchi:riceve:Anna Rossi']);
+
+// Ingresso: nome + PIN giusti collegano il telefono; gli errori si contano per nome e dopo 5 si aspetta.
+const { chiave, idTentativi } = await import('./profilo.js');
+const prova = (uid, data) => entra.run({ auth: { uid }, data });
+const errore = async (uid, data) => { try { await prova(uid, data); } catch (e) { return e.code; } assert.fail('doveva fallire'); };
+await db.doc(`persone/${await chiave('Dina Neri', '1234')}`).set({ id: 'dina', nome: 'Dina Neri' });
+await db.doc('elenco/soci').set({ soci: { dina: 'Dina Neri' } });
+await db.doc('impostazioni/iscrizioni').delete();
+assert.deepEqual(await prova('tel1', { nome: 'Dina Neri', pin: '0000' }), { iscrizioni: false });
+const giusto = await prova('tel1', { nome: 'dina  NERI', pin: '1234' });
+assert.deepEqual(giusto, { io: { id: 'dina', nome: 'Dina Neri', segreto: await chiave('Dina Neri', '1234') } });
+assert.deepEqual((await db.doc('dispositivi/tel1').get()).data(), { id: 'dina', segreto: giusto.io.segreto });
+assert.equal((await db.doc(`tentativi/${idTentativi('Dina Neri')}`).get()).exists, false); // PIN giusto: conto azzerato
+for (const pin of ['0001', '0002', '0003', '0004', '0005']) await prova(`x${pin}`, { nome: 'Dina Neri', pin });
+assert.equal(await errore('x6', { nome: 'Dina Neri', pin: '1234' }), 'resource-exhausted'); // bloccato anche col PIN giusto
+assert.equal((await db.doc('dispositivi/x6').get()).exists, false);
+assert.equal(await errore('x7', { nome: 'Dina Neri', pin: '12' }), 'invalid-argument');
+try { await prova('x9', { nome: 'Dina Neri', pin: '1234' }); } catch (e) { assert.deepEqual(e.details, { minuti: 15 }); }
+// Un nome che non è di nessun socio non si conta: non rivela nulla.
+for (let i = 0; i < 7; i++) await prova(`y${i}`, { nome: 'Nessuno Mai', pin: '0000' });
+assert.equal((await db.doc(`tentativi/${idTentativi('Nessuno Mai')}`).get()).exists, false);
+// Dopo l'attesa si riprova (qui: ultimo errore spostato indietro di 16 minuti).
+await db.doc(`tentativi/${idTentativi('Dina Neri')}`).update({ ultimo: new Date(Date.now() - 16 * 60e3) });
+assert.equal((await prova('x8', { nome: 'Dina Neri', pin: '1234' })).io.id, 'dina');
+
+// Iscrizione: solo col codice giusto e a iscrizioni aperte; il telefono già collegato non si reiscrive.
+const ezio = { nome: 'ezio verdi', pin: '4321', codice: 'codice-prova' };
+assert.equal(await errore('tel-ezio', ezio), 'permission-denied'); // chiuse
+await db.doc('impostazioni/iscrizioni').set({ fino: new Date(Date.now() + 3600e3) });
+assert.deepEqual(await prova('tel-ezio', { nome: 'Ezio Verdi', pin: '4321' }), { iscrizioni: true });
+try { await prova('tel-ezio', { ...ezio, codice: 'sbagliato' }); assert.fail(); } catch (e) { assert.deepEqual(e.details, { motivo: 'link' }); }
+assert.equal(await errore('tel1', ezio), 'permission-denied'); // tel1 è già il telefono di Dina
+const nuovo = await prova('tel-ezio', ezio);
+assert.deepEqual(nuovo.io, { id: 'tel-ezio', nome: 'Ezio Verdi', segreto: await chiave('Ezio Verdi', '4321') });
+assert.deepEqual((await db.doc(`persone/${nuovo.io.segreto}`).get()).data(), { id: 'tel-ezio', nome: 'Ezio Verdi' });
+assert.equal((await db.doc('dispositivi/tel-ezio').get()).data().id, 'tel-ezio');
 
 console.log('e2e funzioni: tutto ok');

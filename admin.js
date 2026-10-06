@@ -3,7 +3,7 @@
 // Lo carica index.html solo per l'admin. Stessi URL di Firebase di index.html: altrimenti db non è riconosciuto.
 import { doc, getDocs, onSnapshot, setDoc, deleteDoc, collection, query, where, orderBy, limit, writeBatch, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { chiave, pinValido } from './profilo.js';
+import { chiave, pinValido, idTentativi } from './profilo.js?v=3';
 // ?v=: GitHub Pages lascia i file in cache 10 minuti; senza, un telefono può unire questo admin.js nuovo a un
 // calendario.js vecchio. ponytail: v da aumentare a mano quando calendario.js cambia.
 import { iso, fraseStorico, titoloGiorno } from './calendario.js?v=6';
@@ -67,6 +67,7 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
   }
 
   // Reset PIN: stesso id (i turni restano suoi), nuova chiave; la vecchia chiave smette di funzionare.
+  // Azzera anche i PIN sbagliati contati per quel nome: se era bloccato, entra subito.
   async function reimpostaPin(s) {
     const pin = await chiedi('Scegli un nuovo PIN di 4 cifre e comunicalo al socio.', {
       titolo: s.nome, ok: 'Reimposta PIN', annulla: 'Annulla', input: true,
@@ -78,6 +79,7 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
     try {
       await setDoc(doc(db, 'persone', nuova), { id: s.id, nome: s.nome });
       await deleteDoc(doc(db, 'persone', s.segreto));
+      await deleteDoc(doc(db, 'tentativi', idTentativi(s.nome)));
       await chiedi(`Comunica a ${s.nome} il nuovo PIN.`, { titolo: 'PIN reimpostato' });
     } catch {
       await chiedi('Forse un omonimo ha già questo PIN: scegline un altro.', { titolo: 'PIN non reimpostato' });

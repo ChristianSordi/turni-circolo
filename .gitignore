@@ -5,3 +5,5 @@ prod/
 docs/superpowers/
 functions/.env
 functions/calendario.js
+functions/profilo.js
+functions/.env.local

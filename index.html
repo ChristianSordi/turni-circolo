@@ -474,7 +474,8 @@ import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gst
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=6'; // ?v=: vedi admin.js
-import { normalizzaNome, maiuscole, nomeValido, pinValido, chiave } from './profilo.js?v=2'; // ?v=: vedi admin.js
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
+import { normalizzaNome, maiuscole, nomeValido, pinValido } from './profilo.js?v=3'; // ?v=: vedi admin.js
 
 // Config web dalla console Firebase (Impostazioni progetto → Le tue app). Non è segreta.
 const firebaseConfig = {
@@ -488,10 +489,14 @@ const locale = ['localhost', '127.0.0.1'].includes(location.hostname);
 const app = initializeApp(locale ? { apiKey: 'demo', projectId: 'demo-turni' } : firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const funzioni = getFunctions(app, 'europe-west1');
 if (locale) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, '127.0.0.1', 8181);
+  connectFunctionsEmulator(funzioni, '127.0.0.1', 5001);
 }
+// Nome + PIN li controlla il server (functions/index.js): conta i PIN sbagliati per nome e collega il telefono.
+const chiediAlServer = httpsCallable(funzioni, 'entra');
 
 const $ = (id) => document.getElementById(id);
 const oggi = () => iso(new Date());
@@ -564,7 +569,6 @@ async function profilo(uid) {
   return p.exists() ? { ...p.data(), segreto: d.data().segreto } : null; // sparito = PIN reimpostato
 }
 
-const collega = (uid, id, segreto) => setDoc(doc(db, 'dispositivi', uid), { id, segreto });
 
 function erroreIngresso(testo) {
   $('errore-ingresso').textContent = testo;
@@ -594,42 +598,44 @@ function modulo() {
 }
 
 // Schermata di ingresso: stesso nome + PIN = stessa persona; altrimenti iscrizione (serve ?circolo=).
-async function entra(uid) {
+// Risposte del server: { io } dentro; { iscrizioni } non trovato; errore = troppi tentativi o iscrizione negata.
+async function entra() {
   const codice = new URL(location.href).searchParams.get('circolo');
   $('stato').hidden = true;
   $('ingresso').hidden = false;
+  const server = async (dati) => {
+    try {
+      return (await chiediAlServer(dati)).data;
+    } catch (e) {
+      const { minuti, motivo } = e.details ?? {};
+      erroreIngresso(minuti ? `Troppi PIN sbagliati con questo nome: riprova tra ${minuti === 1 ? '1 minuto' : `${minuti} minuti`}, oppure chiedi all'amministratore di reimpostare il PIN.`
+        : motivo === 'chiuse' ? 'Le iscrizioni sono chiuse: chiedi all\'amministratore di aprirle, poi riprova.'
+        : motivo === 'link' ? 'Link del circolo non valido o scaduto: chiedi quello nuovo nel gruppo.'
+        : 'Controlla la connessione e riprova.');
+      return null;
+    }
+  };
   for (;;) {
     const { nome, pin } = await modulo();
-    const segreto = await chiave(nome, pin);
-    const p = await getDoc(doc(db, 'persone', segreto));
-    if (p.exists()) {
-      await collega(uid, p.data().id, segreto);
-      $('ingresso').hidden = true;
-      return { ...p.data(), segreto };
+    let r = await server({ nome, pin });
+    if (!r) continue;
+    if (!r.io) {
+      if (!codice) {
+        erroreIngresso('Non ti abbiamo trovato: controlla nome, cognome e PIN. Se sei nuovo, apri il link del circolo che trovi nel gruppo WhatsApp.');
+        continue;
+      }
+      if (!r.iscrizioni) {
+        erroreIngresso('Non ti abbiamo trovato. Se sei già iscritto, ricontrolla nome, cognome e PIN. Se sei nuovo, le iscrizioni sono chiuse: chiedi all\'amministratore di aprirle, poi riprova.');
+        continue;
+      }
+      if (!await chiedi('Se sei nuovo, iscriviti. Se sei già iscritto, ricontrolla nome, cognome e PIN.', {
+        titolo: 'Non ti abbiamo trovato', ok: `Iscrivimi come ${nome}`, annulla: 'Ricontrollo i dati',
+      })) continue;
+      r = await server({ nome, pin, codice });
+      if (!r) continue;
     }
-    if (!codice) {
-      erroreIngresso('Non ti abbiamo trovato: controlla nome, cognome e PIN. Se sei nuovo, apri il link del circolo che trovi nel gruppo WhatsApp.');
-      continue;
-    }
-    // Iscrizioni chiuse: lo blocca anche firestore.rules, qui solo il messaggio giusto.
-    const fino = (await getDoc(doc(db, 'impostazioni', 'iscrizioni'))).data()?.fino;
-    if (!(fino?.toMillis() > Date.now())) {
-      erroreIngresso('Non ti abbiamo trovato. Se sei già iscritto, ricontrolla nome, cognome e PIN. Se sei nuovo, le iscrizioni sono chiuse: chiedi all\'amministratore di aprirle, poi riprova.');
-      continue;
-    }
-    if (!await chiedi('Se sei nuovo, iscriviti. Se sei già iscritto, ricontrolla nome, cognome e PIN.', {
-      titolo: 'Non ti abbiamo trovato', ok: `Iscrivimi come ${nome}`, annulla: 'Ricontrollo i dati',
-    })) continue;
-    try {
-      await setDoc(doc(db, 'persone', segreto), { id: uid, nome, codice });
-    } catch (e) {
-      if (e.code !== 'permission-denied') throw e;
-      erroreIngresso('Link del circolo non valido o scaduto: chiedi quello nuovo nel gruppo.');
-      continue;
-    }
-    await collega(uid, uid, segreto);
     $('ingresso').hidden = true;
-    return { id: uid, nome, segreto };
+    return r.io;
   }
 }
 
@@ -909,7 +915,7 @@ function mostraAgenda() {
     .then(({ avviaChiavi }) => { portachiavi = avviaChiavi({ db, io, admin, soci: () => soci, $, el, chiedi, avvisoBreve, mostraVista }); })
     .catch(() => chiedi('Scheda Chiavi non caricata. Ricarica la pagina.', { titolo: 'Errore' }));
   if (admin) {
-    import('./admin.js?v=8') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
+    import('./admin.js?v=9') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
       .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }); })
       .catch(() => chiedi('Pannello admin non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
   }

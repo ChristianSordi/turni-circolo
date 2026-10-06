@@ -34,25 +34,16 @@ const db = (uid) => env.authenticatedContext(uid).firestore();
 const segnaAnna = () => setDoc(doc(db('anna'), 'turni', GIORNO), { id: 'anna', nome: 'Anna Rossi' });
 const diventaAdmin = (uid) => setDoc(doc(db(uid), 'admin', uid), { chiave: 'CAMBIAMI' });
 
-test('iscrizione con il codice del circolo', async () => {
+// Ingresso e iscrizione li fa functions/index.js (entra, provato in prova-e2e.mjs): qui come lo farebbe lei.
+const collega = (uid, id, segreto) => env.withSecurityRulesDisabled((ctx) =>
+  setDoc(doc(ctx.firestore(), 'dispositivi', uid), { id, segreto }));
+
+test('il telefono non si iscrive né si collega da solo, nemmeno col codice', async () => {
   const k = 'chiave-carla-0123456789';
-  await assertSucceeds(setDoc(doc(db('carla'), 'persone', k), { id: 'carla', nome: 'Carla Verdi', codice: CODICE }));
-  await assertSucceeds(setDoc(doc(db('carla'), 'dispositivi', 'carla'), { id: 'carla', segreto: k }));
-});
-
-test('senza codice del circolo giusto non ci si iscrive', async () => {
-  await assertFails(setDoc(doc(db('carla'), 'persone', 'chiave-senza-0123456789'), { id: 'carla', nome: 'Carla Verdi' }));
-  await assertFails(setDoc(doc(db('carla'), 'persone', 'chiave-errata-0123456789'), { id: 'carla', nome: 'Carla Verdi', codice: 'vecchio' }));
-});
-
-test('iscrizioni chiuse (mai aperte o scadute): nemmeno col codice', async () => {
-  const carla = () => setDoc(doc(db('carla'), 'persone', 'chiave-carla-0123456789'), { id: 'carla', nome: 'Carla Verdi', codice: CODICE });
-  await env.withSecurityRulesDisabled((ctx) => deleteDoc(doc(ctx.firestore(), 'impostazioni', 'iscrizioni')));
-  await assertFails(carla());
-  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'impostazioni', 'iscrizioni'), { fino: new Date(Date.now() - 1000) }));
-  await assertFails(carla());
-  // Chi è già iscritto entra lo stesso da un telefono nuovo.
-  await assertSucceeds(setDoc(doc(db('anna-nuovo'), 'dispositivi', 'anna-nuovo'), { id: 'anna', segreto: CHIAVE_ANNA }));
+  await assertFails(setDoc(doc(db('carla'), 'persone', k), { id: 'carla', nome: 'Carla Verdi', codice: CODICE }));
+  await assertFails(setDoc(doc(db('carla'), 'persone', k), { id: 'carla', nome: 'Carla Verdi' }));
+  await assertFails(setDoc(doc(db('carla'), 'dispositivi', 'carla'), { id: 'anna', segreto: CHIAVE_ANNA }));
+  await assertFails(setDoc(doc(db('anna'), 'dispositivi', 'anna'), { id: 'anna', segreto: CHIAVE_ANNA }));
 });
 
 test('iscrizioni: le apre e chiude solo l\'admin, le legge chiunque', async () => {
@@ -66,21 +57,23 @@ test('iscrizioni: le apre e chiude solo l\'admin, le legge chiunque', async () =
   await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'impostazioni', 'iscrizioni')));
 });
 
-test('non ci si iscrive con id di un altro', async () => {
-  await assertFails(setDoc(doc(db('carla'), 'persone', 'chiave-finta-0123456789'), { id: 'anna', nome: 'Anna Rossi', codice: CODICE }));
-});
-
-test('nome: obbligatori nome e cognome, spazi singoli, max 60', async () => {
-  for (const nome of ['', 'Carla', ' Carla Verdi', 'Carla  Verdi', 'Carla Verdi ', 'Carla ' + 'x'.repeat(60)]) {
-    await assertFails(setDoc(doc(db('carla'), 'persone', 'chiave-nome-0123456789'), { id: 'carla', nome, codice: CODICE }));
-  }
-});
-
-test('persone: si legge conoscendo la chiave, l\'elenco solo l\'admin', async () => {
-  await assertSucceeds(getDoc(doc(db('carla'), 'persone', CHIAVE_ANNA)));
+test('persone: il telefono legge solo il proprio profilo (niente PIN provati a raffica), l\'elenco solo l\'admin', async () => {
+  await assertSucceeds(getDoc(doc(db('anna'), 'persone', CHIAVE_ANNA)));
+  await assertFails(getDoc(doc(db('carla'), 'persone', CHIAVE_ANNA)));
+  await assertFails(getDoc(doc(db('carla'), 'persone', 'chiave-che-non-esiste-0123')));
+  await assertFails(getDoc(doc(db('bruno'), 'persone', CHIAVE_ANNA)));
   await assertFails(getDocs(collection(db('bruno'), 'persone')));
   await diventaAdmin('capo');
   await assertSucceeds(getDocs(collection(db('capo'), 'persone')));
+});
+
+test('tentativi: nessuno li legge o scrive dal telefono, l\'admin li azzera', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'tentativi', 'anna%20rossi'), { errori: 5, ultimo: new Date() }));
+  await assertFails(getDoc(doc(db('anna'), 'tentativi', 'anna%20rossi')));
+  await assertFails(setDoc(doc(db('anna'), 'tentativi', 'anna%20rossi'), { errori: 0 }));
+  await assertFails(deleteDoc(doc(db('anna'), 'tentativi', 'anna%20rossi')));
+  await diventaAdmin('capo');
+  await assertSucceeds(deleteDoc(doc(db('capo'), 'tentativi', 'anna%20rossi')));
 });
 
 test('dispositivo di un altro non leggibile', async () => {
@@ -120,10 +113,8 @@ test('solo il proprietario cancella il suo turno', async () => {
 
 test('rientro su un altro dispositivo con la chiave giusta = stessa persona', async () => {
   await segnaAnna();
-  await assertFails(setDoc(doc(db('anna-pc'), 'dispositivi', 'anna-pc'), { id: 'anna', segreto: 'chiave-sbagliata-0123' }));
-  await assertFails(setDoc(doc(db('anna-pc'), 'dispositivi', 'anna-pc'), { id: 'anna', segreto: CHIAVE_BRUNO }));
-  await assertFails(setDoc(doc(db('anna-pc'), 'dispositivi', 'anna'), { id: 'anna', segreto: CHIAVE_ANNA }));
-  await assertSucceeds(setDoc(doc(db('anna-pc'), 'dispositivi', 'anna-pc'), { id: 'anna', segreto: CHIAVE_ANNA }));
+  await collega('anna-pc', 'anna', CHIAVE_ANNA);
+  await assertSucceeds(getDoc(doc(db('anna-pc'), 'persone', CHIAVE_ANNA)));
   await assertSucceeds(deleteDoc(doc(db('anna-pc'), 'turni', GIORNO)));
 });
 
@@ -153,7 +144,7 @@ test('dopo il reset: vecchio PIN tagliato fuori, nuovo PIN ritrova i turni', asy
   await deleteDoc(doc(db('capo'), 'persone', CHIAVE_ANNA));
   await assertFails(deleteDoc(doc(db('anna'), 'turni', GIORNO)));
   await assertFails(setDoc(doc(db('anna'), 'turni', traGiorni(8)), { id: 'anna', nome: 'Anna Rossi' }));
-  await assertSucceeds(setDoc(doc(db('anna'), 'dispositivi', 'anna'), { id: 'anna', segreto: NUOVA_ANNA }));
+  await collega('anna', 'anna', NUOVA_ANNA);
   await assertSucceeds(setDoc(doc(db('anna'), 'turni', traGiorni(8)), { id: 'anna', nome: 'Anna Rossi' }));
   await assertSucceeds(deleteDoc(doc(db('anna'), 'turni', GIORNO)));
 });
@@ -162,14 +153,6 @@ test('profili e admin non modificabili', async () => {
   await assertFails(setDoc(doc(db('anna'), 'persone', CHIAVE_ANNA), { id: 'anna', nome: 'Anna Verdi', codice: CODICE }));
   await diventaAdmin('capo');
   await assertFails(setDoc(doc(db('capo'), 'admin', 'capo'), { chiave: 'CAMBIAMI' }));
-});
-
-test('dopo il reset il dispositivo d\'iscrizione non si riprende l\'identità iscrivendosi di nuovo', async () => {
-  await diventaAdmin('capo');
-  await setDoc(doc(db('capo'), 'persone', NUOVA_ANNA), { id: 'anna', nome: 'Anna Rossi' });
-  await deleteDoc(doc(db('capo'), 'persone', CHIAVE_ANNA));
-  await assertFails(setDoc(doc(db('anna'), 'persone', CHIAVE_ANNA), { id: 'anna', nome: 'Anna Rossi', codice: CODICE }));
-  await assertFails(setDoc(doc(db('anna'), 'persone', 'chiave-anna-altra-0123456789'), { id: 'anna', nome: 'Anna Rossi', codice: CODICE }));
 });
 
 test('dopo il reset il vecchio dispositivo non legge più i turni', async () => {

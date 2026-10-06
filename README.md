@@ -11,7 +11,8 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
 
 - **Telefono nuovo o pagina che non ti riconosce più:** apri la pagina e scrivi gli stessi nome,
   cognome e PIN: ritrovi i tuoi turni. Maiuscole e spazi non contano.
-- **PIN dimenticato:** chiedi all'amministratore di reimpostarlo.
+- **PIN dimenticato:** chiedi all'amministratore di reimpostarlo. Dopo 5 PIN sbagliati con lo stesso nome bisogna
+  aspettare 15 minuti (di più se si continua a sbagliare); col PIN reimpostato si entra subito.
 - **Ti chiede nome e PIN ogni volta?** Il telefono non lascia salvare i dati: l'app lo dice nella schermata di
   ingresso. Su iPhone: Impostazioni → Safari → disattiva «Blocca tutti i cookie»; niente navigazione privata.
 - **Non puoi più fare un turno?** Tocca il tuo giorno → "Cerco un sostituto". Il giorno diventa arancione
@@ -66,17 +67,23 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
   `chiavi`. Se un socio dice di non aver ricevuto le chiavi che un altro dice di avergli dato, resta scritto lì.
 - **Iscrizioni:** sono chiuse; chi è già iscritto entra lo stesso (anche da un telefono nuovo). Per un socio nuovo:
   scheda **Soci** → "Apri le iscrizioni per 24 ore", poi si richiudono da sole; "Chiudi subito" le chiude prima.
-  Il blocco è nelle regole (`impostazioni/iscrizioni`, campo `fino`): col link del circolo e le iscrizioni chiuse
-  non si entra. Senza il documento le iscrizioni sono chiuse.
-- **Link del circolo finito in mani sbagliate:** cambia il codice del circolo nelle regole (vedi sotto)
-  e manda il link nuovo nel gruppo. Chi è già iscritto non si accorge di nulla.
+  Il blocco è nella funzione `entra` (`impostazioni/iscrizioni`, campo `fino`): col link del circolo e le iscrizioni
+  chiuse non si entra. Senza il documento le iscrizioni sono chiuse.
+- **Link del circolo finito in mani sbagliate:** cambia `CODICE_CIRCOLO` in `functions/.env` (e in
+  `segreti.local.txt`), ripubblica le funzioni (vedi sotto) e manda il link nuovo nel gruppo. Chi è già iscritto non
+  si accorge di nulla.
+- **Socio bloccato da troppi PIN sbagliati:** "Reimposta PIN" lo sblocca. Se qualcuno prova a indovinare il PIN di
+  un socio, quel nome resta bloccato per un po': chi ha già l'app aperta sul telefono non se ne accorge.
 
-Limite noto: un PIN di 4 cifre ferma errori e furbetti, non un attacco automatico deciso. In caso di
-abusi, reimposta il PIN della vittima.
+Contro chi prova i PIN a raffica: nome e PIN li controlla la funzione `entra` (Cloud Functions), non il telefono,
+che non può leggere i profili degli altri. Gli errori si contano per nome dei soci (`tentativi/`): dopo 5 si aspetta
+15 minuti, poi il doppio ogni altri 5 errori, fino a 16 ore (`attesa` in `profilo.js`). Un PIN giusto o il reset
+dell'admin azzerano il conto.
 
 ## Regole di sicurezza
 
-`firestore.rules` nel repository contiene i segnaposto `CAMBIAMI` (parola admin) e `CODICE-CIRCOLO`.
+`firestore.rules` nel repository contiene il segnaposto `CAMBIAMI` (parola admin). Il codice del circolo sta in
+`functions/.env` (`CODICE_CIRCOLO`, fuori da git).
 Le regole vere, con i valori segreti, stanno solo nella cartella locale `prod/` (fuori da git, come
 `segreti.local.txt`).
 
@@ -99,8 +106,8 @@ Europa, accesso anonimo).
 
 Serve Java 21+ per gli emulatori Firebase (auth 9099, Firestore 8181).
 
-I promemoria li manda ogni mattina alle 9 la funzione `functions/index.js` (Cloud Functions,
-`europe-west1`). Pubblicarla è sicuro anche dalla cartella del repository, perché `--only functions`
+Ingresso e iscrizione (`entra`), promemoria ogni mattina alle 9, storico e chiavi li fa `functions/index.js`
+(Cloud Functions, `europe-west1`). Pubblicarla è sicuro anche dalla cartella del repository, perché `--only functions`
 non tocca le regole:
 
 ```bash
@@ -132,8 +139,8 @@ cambia: l'avviso non blocca la spesa, avvisa soltanto.
 npm install
 npm test                       # regole di sicurezza + calendario + profilo
 npm run e2e                    # funzioni (promemoria e storico) sull'emulatore
-npm run emulatori              # emulatori auth + firestore
-python3 -m http.server 8000    # poi apri http://localhost:8000/?circolo=CODICE-CIRCOLO
+npm run emulatori              # emulatori auth + firestore + funzioni (con functions/.env.local: CODICE_CIRCOLO=prova)
+python3 -m http.server 8000    # poi apri http://localhost:8000/?circolo=prova (prima apri le iscrizioni da admin)
 ```
 
 <details>
@@ -142,7 +149,8 @@ python3 -m http.server 8000    # poi apri http://localhost:8000/?circolo=CODICE-
 1. https://console.firebase.google.com → Crea progetto (piano gratuito Spark, senza Analytics).
 2. Authentication → Metodo di accesso → **Anonimo** → Attiva.
 3. Firestore Database → Crea database → `eur3 (Europe)` → modalità produzione.
-4. Firestore → Regole: incolla `firestore.rules` con i valori veri al posto dei segnaposto → Pubblica.
+4. Firestore → Regole: incolla `firestore.rules` con la parola admin vera al posto di `CAMBIAMI` → Pubblica.
+   In `functions/.env` metti `CODICE_CIRCOLO=<codice>` e pubblica le funzioni (piano Blaze, resta nella quota gratuita).
 5. Impostazioni progetto → Le tue app → Web `</>` → copia `firebaseConfig` in `index.html` (non è segreta).
 6. GitHub → Settings → Pages → Branch `master` / root → Save.
 7. Authentication → Impostazioni → Domini autorizzati → aggiungi `<utente>.github.io`.

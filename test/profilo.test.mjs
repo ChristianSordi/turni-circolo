@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { normalizzaNome, maiuscole, nomeValido, pinValido, chiave } from '../profilo.js';
+import { normalizzaNome, maiuscole, nomeValido, pinValido, chiave, attesa, idTentativi } from '../profilo.js';
 
 test('normalizzaNome toglie spazi in eccesso', () => {
   assert.equal(normalizzaNome('  Mario   Rossi \t'), 'Mario Rossi');
@@ -39,4 +39,20 @@ test('maiuscole: solo la prima lettera di nome e cognome', async () => {
   assert.equal(maiuscole('anna maria rossi-bianchi'), 'Anna Maria Rossi-Bianchi');
   assert.equal(maiuscole('Élodie DE LUCA'), 'Élodie De Luca');
   assert.equal(await chiave(maiuscole('GABRIELE MASSACCESI'), '1234'), await chiave('GABRIELE MASSACCESI', '1234'));
+});
+
+test('blocco dopo 5 PIN sbagliati per nome: 15 minuti, poi raddoppia ogni 5 errori, al massimo 16 ore', () => {
+  const m = 60e3;
+  assert.equal(attesa(4, 0, 0), 0);
+  assert.equal(attesa(5, 0, 0), 15 * m);
+  assert.equal(attesa(5, 0, 10 * m), 5 * m);
+  assert.equal(attesa(9, 0, 15 * m), 0);
+  assert.equal(attesa(10, 0, 0), 30 * m);
+  assert.equal(attesa(15, 0, 0), 60 * m);
+  assert.equal(attesa(500, 0, 0), 16 * 60 * m);
+});
+
+test('idTentativi: stesso nome comunque scritto, niente barre', () => {
+  assert.equal(idTentativi('  MARIO   Rossi'), idTentativi('mario rossi'));
+  assert.ok(!idTentativi('Mario A/B').includes('/'));
 });
