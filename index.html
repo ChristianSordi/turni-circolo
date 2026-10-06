@@ -155,6 +155,10 @@
   .giorno.libero .nome { margin-top: -3px; font: 800 1.6rem/1 var(--titoli); color: var(--verde); }
   .giorno.altro { border: 2px solid var(--occupato); background: var(--occupato); font-weight: 700; }
   .giorno.mio { border: 2px solid var(--rosso); background: var(--rosso); color: #fff; font-weight: 700; }
+  /* Aperto nel giorno di chiusura: bordo blu spesso e la scritta "extra", fatto o da fare */
+  .giorno.extra, .legenda .l-extra { border: 3px solid var(--blu); }
+  .giorno.extra .nome { font-weight: 800; }
+  .legenda .l-extra { background: var(--occupato); }
   .giorno.passato { opacity: .5; border-style: solid; }
   .giorno.oggi .num { background: var(--inchiostro); color: var(--su-inchiostro); }
   .giorno.mio.oggi .num { background: #fff; color: var(--rosso); }
@@ -363,6 +367,7 @@
       <li><i class="l-libero"></i>Libero: tocca per segnarti</li>
       <li><i class="l-cerca"></i>Cercasi sostituto: tocca per prenderlo</li>
       <li id="legenda-chiuso" hidden><i class="l-chiuso"></i>Chiuso: se vuoi aprire tu, toccalo</li>
+      <li id="legenda-extra" hidden><i class="l-extra"></i>Extra: aperto nel giorno di chiusura</li>
     </ul>
     <section id="mese-soci" hidden>
       <h2 id="mese-soci-titolo"></h2>
@@ -664,11 +669,13 @@ function disegna() {
     const b = el('button', 'giorno');
     const serranda = !t && chiuso(data, orari.chiusura); // un turno già segnato resta visibile
     const cerca = t?.cedo && data >= oggi(); // passato il giorno non si prende più
+    const extra = t && chiuso(data, orari.chiusura); // turno in un giorno di chiusura
     const libero = !t && !serranda && (data >= oggi() || admin); // l'admin segna anche i giorni passati
     b.append(el('span', 'num', String(Number(data.slice(8)))),
-      el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : '') : serranda ? 'chiuso' : libero ? '+' : ''));
-    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${cerca ? ', cerca un sostituto' : ''}` : serranda ? 'circolo chiuso' : 'libero'}`);
+      el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : extra ? '\nextra' : '') : serranda ? 'chiuso' : libero ? '+' : ''));
+    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${extra ? ', aperto nel giorno di chiusura' : ''}${cerca ? ', cerca un sostituto' : ''}` : serranda ? 'circolo chiuso' : 'libero'}`);
     if (t) b.classList.add(t.id === io.id ? 'mio' : 'altro');
+    if (extra) b.classList.add('extra');
     if (cerca) b.classList.add('cerca');
     if (serranda) b.classList.add('chiuso');
     if (libero) b.classList.add('libero');
@@ -678,6 +685,7 @@ function disegna() {
     g.append(b);
   }
   $('legenda-chiuso').hidden = orari.chiusura == null;
+  $('legenda-extra').hidden = orari.chiusura == null;
   const [fatti, aperti] = coperti(anno, mese, turni, orari.chiusura);
   $('coperti').replaceChildren(`Turni coperti in ${new Date(anno, mese).toLocaleDateString('it-IT', { month: 'long' })}: `,
     el('strong', '', `${fatti}/${aperti}`));
