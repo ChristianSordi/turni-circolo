@@ -45,7 +45,7 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
 - **Diventare admin:** apri una volta dal telefono il link del circolo con in più `&admin=<parola-segreta>`.
   Da lì l'admin segue la persona: su un altro telefono bastano nome, cognome e PIN.
 - **Togliere un turno:** tocca il giorno occupato.
-- **Le schede dell'admin** (sotto Calendario e Classifica, le vede solo l'admin): **Soci**, **Attività**, **Orari**.
+- **Le schede dell'admin** (sotto Calendario e Classifica, le vede solo l'admin): **Soci**, **Attività**, **Circolo**.
 - **Reimpostare un PIN:** scheda **Soci** → "Reimposta PIN" → comunica il nuovo
   PIN al socio. I turni restano suoi e il vecchio PIN smette di funzionare ovunque.
 - **Storico e accessi:** nella scheda **Soci** ogni riga dice quanti turni, quante volte ha aperto l'app e

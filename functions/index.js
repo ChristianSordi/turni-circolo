@@ -152,8 +152,7 @@ export const incasso = onCall({ ...MINIMO, maxInstances: 3 }, async (req) => {
   });
   if (esito.no) no(esito.no);
   if (esito.avvisa) {
-    vapid();
-    await invia(db, esito.avvisa).catch((e) => console.error('Avviso al turnista non inviato', e));
+    await Promise.resolve().then(() => { vapid(); return invia(db, esito.avvisa); }).catch((e) => console.error('Avviso al turnista non inviato', e));
   }
   return { ok: true };
 });

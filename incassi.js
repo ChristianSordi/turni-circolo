@@ -127,6 +127,8 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
           await chiama({ azione, giorno: g, ...v, ...(modifica && { motivo }) });
           chiudi(v);
         } catch (err) {
+          // salvato ma risposta persa: al nuovo tentativo l'incasso c'è già, ed è il mio
+          if (err.details?.motivo === 'esiste' && incassi[g]?.inseritoDa?.id === io.id) return chiudi(v);
           passo(false);
           errore(MOTIVI[err.details?.motivo] ?? 'Controlla la connessione e riprova.');
         } finally {
@@ -303,7 +305,8 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     incassi = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
     disegna();
   }, () => {});
-  setInterval(disegna, 60e3); // la serata aperta cambia all'orario di apertura: il riquadro in cima va ridisegnato
+  let ultimaSerata = serata();
+  setInterval(() => { if (serata() !== ultimaSerata) { ultimaSerata = serata(); disegna(); } }, 60e3); // la serata aperta cambia all'orario di apertura: il riquadro in cima va ridisegnato
   accendi(acceso);
   return { disegna, accendi, etichetta, apri };
 }
