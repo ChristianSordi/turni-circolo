@@ -200,7 +200,8 @@ test('centesimi: virgola o punto, spazi, vuoto = 0; il resto è rifiutato', () =
   assert.equal(centesimi('0'), 0);
   assert.equal(centesimi(''), 0);
   assert.equal(centesimi('  '), 0);
-  for (const male of ['1.290,50', '€ 50', '50,', '12,345', '-5', 'dieci', '1e3', '100000']) assert.equal(centesimi(male), null, male);
+  assert.equal(centesimi('10000'), 1000000);
+  for (const male of ['1.290,50', '€ 50', '50,', '12,345', '-5', 'dieci', '1e3', '100000', '10000,01', '10001']) assert.equal(centesimi(male), null, male);
 });
 
 test('euro: sempre due decimali e il punto delle migliaia', () => {

@@ -178,7 +178,8 @@ export function centesimi(testo) {
   if (t === '') return 0;
   if (!/^\d{1,5}(\.\d{1,2})?$/.test(t)) return null;
   const [e, c = ''] = t.split('.');
-  return Number(e) * 100 + Number(c.padEnd(2, '0'));
+  const valore = Number(e) * 100 + Number(c.padEnd(2, '0'));
+  return valore > 1000000 ? null : valore;
 }
 
 // 129050 → "€ 1.290,50" (senza toLocaleString: uguale su ogni telefono).
