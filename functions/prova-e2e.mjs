@@ -10,7 +10,7 @@ Object.assign(process.env, { VAPID_PUBLIC: chiavi.publicKey, VAPID_PRIVATE: chia
 const inviate = [];
 webpush.sendNotification = async (sub, payload) => { inviate.push({ endpoint: sub.endpoint, ...JSON.parse(payload) }); };
 
-const { promemoria, attivita, elenco, chiavi: passaggiChiavi, entra, incasso } = await import('./index.js');
+const { promemoria, attivita, elenco, chiavi: passaggiChiavi, entra, incasso, incassiMancanti } = await import('./index.js');
 const { getFirestore } = await import('firebase-admin/firestore');
 const { iso } = await import('./calendario.js');
 const db = getFirestore();
@@ -249,5 +249,31 @@ assert.equal((await storiaDi(PRIMA)).length, 2);
 // Spento: niente più scritture.
 await db.doc('impostazioni/incassi').set({ attivi: false, avvisoMancante: false, dal: PRIMA });
 assert.equal(await rifiuto('anna', { azione: 'fondo', giorno: S, ...fondo1 }), 'spenti');
+
+// Avviso delle 11: ieri c'era un turno e manca l'incasso → al turnista e agli admin; mai con gli interruttori spenti,
+// mai per le serate prima dell'accensione (dal), mai se l'incasso c'è.
+const oggiM = new Date();
+const IERI = iso(new Date(oggiM.getFullYear(), oggiM.getMonth(), oggiM.getDate() - 1));
+await db.recursiveDelete(db.doc(`incassi/${IERI}`));
+await db.doc(`turni/${IERI}`).set(ANNA);
+await db.doc('impostazioni/circolo').set({ apre: '21:00', chiude: '00:00', chiusura: null });
+const avvisiAlle11 = async (imp) => {
+  await db.doc('impostazioni/incassi').set(imp);
+  inviate.length = 0;
+  await incassiMancanti.run({});
+  return inviate.map((i) => i.endpoint).sort();
+};
+assert.deepEqual(await avvisiAlle11({ attivi: true, avvisoMancante: false, dal: IERI }), []);
+assert.deepEqual(await avvisiAlle11({ attivi: false, avvisoMancante: true, dal: IERI }), []);
+assert.deepEqual(await avvisiAlle11({ attivi: true, avvisoMancante: true, dal: iso(oggiM) }), []); // acceso oggi
+assert.deepEqual(await avvisiAlle11({ attivi: true, avvisoMancante: true, dal: IERI }),
+  ['https://push.prova/anna', 'https://push.prova/capo']);
+assert.equal(inviate[0].titolo, 'Incasso mancante');
+assert.match(inviate[0].testo, /^Manca l'incasso di .+ \(turno di Anna Rossi\): inseriscilo entro le 21:00\.$/);
+await db.doc(`incassi/${IERI}`).set({ incasso: 100 });
+assert.deepEqual(await avvisiAlle11({ attivi: true, avvisoMancante: true, dal: IERI }), []);
+await db.recursiveDelete(db.doc(`incassi/${IERI}`));
+await db.doc(`turni/${IERI}`).delete();
+assert.deepEqual(await avvisiAlle11({ attivi: true, avvisoMancante: true, dal: IERI }), []); // senza turno nessun avviso
 
 console.log('e2e funzioni: tutto ok');

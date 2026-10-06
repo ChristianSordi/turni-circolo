@@ -170,6 +170,23 @@ export const promemoria = onSchedule({ ...MINIMO, schedule: 'every day 09:00', t
   console.log(`Promemoria inviati: ${inviati}`);
 });
 
+// Alle 11: se il registro e l'avviso sono accesi e ieri sera c'era un turno senza incasso, avvisa il turnista e gli
+// admin. Le serate prima dell'accensione (dal) non contano.
+export const incassiMancanti = onSchedule({ ...MINIMO, schedule: 'every day 11:00', timeZone: 'Europe/Rome', retryCount: 0 }, async () => {
+  const db = getFirestore();
+  const imp = (await db.doc('impostazioni/incassi').get()).data();
+  const oggi = new Date();
+  const ieri = iso(new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() - 1));
+  if (!imp?.attivi || !imp.avvisoMancante || ieri < imp.dal) return;
+  const [t, i, c] = await db.getAll(db.doc(`turni/${ieri}`), db.doc(`incassi/${ieri}`), db.doc('impostazioni/circolo'));
+  if (!t.exists || i.exists) return;
+  vapid();
+  const testo = `Manca l'incasso di ${giornoLeggibile(ieri)} (turno di ${t.data().nome}): inseriscilo entro le ${c.data()?.apre || '21:00'}.`;
+  let inviati = 0;
+  for (const a of new Set([t.data().id, ...await idAdmin(db)])) inviati += await invia(db, { a, titolo: 'Incasso mancante', testo });
+  console.log(`Avvisi di incasso mancante: ${inviati}`);
+});
+
 // Storico: una riga per ogni turno segnato, tolto, in cerca di sostituto o passato a un altro.
 // L'id è quello dell'evento: se Google lo consegna due volte, la riga si sovrascrive.
 // maxInstances 3: raffiche come "Elimina + i suoi turni" scatenano molti eventi insieme; scala a zero, resta gratis.
