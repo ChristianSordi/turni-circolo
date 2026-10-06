@@ -1,12 +1,12 @@
 // Pannello dell'amministratore: le schede Soci (iscrizioni, turni, accessi, storico, reset PIN, elimina), Attività (le azioni
-// di tutti) e Orari del circolo.
+// di tutti) e Circolo (orari e registro degli incassi).
 // Lo carica index.html solo per l'admin. Stessi URL di Firebase di index.html: altrimenti db non è riconosciuto.
 import { doc, getDocs, onSnapshot, setDoc, deleteDoc, collection, query, where, orderBy, limit, writeBatch, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { chiave, pinValido, idTentativi } from './profilo.js?v=3';
 // ?v=: GitHub Pages lascia i file in cache 10 minuti; senza, un telefono può unire questo admin.js nuovo a un
 // calendario.js vecchio. ponytail: v da aumentare a mano quando calendario.js cambia.
-import { iso, fraseStorico, titoloGiorno } from './calendario.js?v=7';
+import { iso, fraseStorico, titoloGiorno, serataAperta } from './calendario.js?v=7';
 
 export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }) {
   let soci = [];      // [{ id, nome, segreto }]
@@ -186,6 +186,38 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
     $('elenco-attivita').replaceChildren(...voci);
   }
 
+  // Registro degli incassi acceso/spento e avviso delle 11. dal = la serata aperta quando si accende: le serate prima
+  // non risultano "manca" e non mandano avvisi (si rimette a ogni accensione).
+  let incassi = {};
+  async function salvaIncassi(cambio, fatto) {
+    const nuovo = { attivi: !!incassi.attivi, avvisoMancante: !!incassi.avvisoMancante,
+      dal: incassi.dal ?? serataAperta(new Date(), $('apre').value), ...cambio };
+    try {
+      await setDoc(doc(db, 'impostazioni', 'incassi'), nuovo);
+      avvisoBreve(fatto);
+    } catch {
+      await chiedi('Controlla la connessione e riprova.', { titolo: 'Non salvato' });
+    }
+  }
+  $('incassi-attivi').onchange = async (e) => {
+    const si = e.target.checked;
+    e.target.checked = !si; // resta com'era finché non conferma; lo rimette a posto onSnapshot
+    if (!await chiedi(si ? 'Tutti i soci vedranno la scheda Incassi e potranno inserire l\'incasso della serata.'
+      : 'La scheda Incassi sparisce per tutti. Gli incassi già inseriti restano salvati.', {
+      titolo: si ? 'Accendere il registro degli incassi?' : 'Spegnere il registro degli incassi?',
+      ok: si ? 'Accendi' : 'Spegni', annulla: 'Annulla',
+    })) return;
+    await salvaIncassi(si ? { attivi: true, dal: serataAperta(new Date(), $('apre').value) } : { attivi: false },
+      si ? 'Registro degli incassi acceso' : 'Registro degli incassi spento');
+  };
+  $('incassi-avviso').onchange = (e) => salvaIncassi({ avvisoMancante: e.target.checked },
+    e.target.checked ? 'Avviso delle 11 acceso' : 'Avviso delle 11 spento');
+  onSnapshot(doc(db, 'impostazioni', 'incassi'), (snap) => {
+    incassi = snap.data() ?? {};
+    $('incassi-attivi').checked = !!incassi.attivi;
+    $('incassi-avviso').checked = !!incassi.avvisoMancante;
+    $('incassi-avviso').disabled = !incassi.attivi;
+  }, () => {});
   $('schede-admin').hidden = false;
   $('scheda-soci').onclick = () => mostraVista('soci');
   $('scheda-attivita').onclick = () => { mostraVista('attivita'); caricaAttivita(); };
