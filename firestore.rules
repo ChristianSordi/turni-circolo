@@ -100,6 +100,11 @@ service cloud.firestore {
       // Iscrizioni aperte fino a "fino" (24 ore dall'apertura); chiudere = fino adesso. Senza documento: chiuse.
       allow create, update: if isAdmin() && id == 'iscrizioni'
         && request.resource.data.keys().hasOnly(['fino']) && request.resource.data.fino is timestamp;
+      // Registro degli incassi acceso/spento, avviso delle 11, dal = serata in cui l'admin l'ha acceso.
+      allow create, update: if isAdmin() && id == 'incassi'
+        && request.resource.data.keys().hasOnly(['attivi', 'avvisoMancante', 'dal'])
+        && request.resource.data.attivi is bool && request.resource.data.avvisoMancante is bool
+        && request.resource.data.dal is string && request.resource.data.dal.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
 
     // Storico delle azioni sui turni: lo scrive solo functions/index.js (admin SDK), lo legge solo l'admin.
@@ -172,6 +177,15 @@ service cloud.firestore {
     }
     match /storico-chiavi/{id} {
       allow read: if exists(/databases/$(database)/documents/persone/$(dispositivo().segreto));
+    }
+
+    // Registro degli incassi: lo leggono i soci; lo scrive solo functions/index.js (incasso), che controlla chi può
+    // cosa e aggiunge sempre la riga di storia. Dal telefono nessuna scrittura, nemmeno dall'admin.
+    match /incassi/{giorno} {
+      allow read: if exists(/databases/$(database)/documents/persone/$(dispositivo().segreto));
+      match /storia/{id} {
+        allow read: if exists(/databases/$(database)/documents/persone/$(dispositivo().segreto));
+      }
     }
 
     // Sostituisci CAMBIAMI con la parola segreta SOLO nella console Firebase, mai nel repo.

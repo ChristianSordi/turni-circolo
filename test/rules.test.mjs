@@ -364,3 +364,38 @@ test('passaggi delle chiavi: li leggono tutti i soci, nessuno li scrive dall\'ap
   await diventaAdmin('capo');
   await assertFails(setDoc(doc(db('capo'), 'storico-chiavi', 'x'), { azione: 'dichiara' }));
 });
+
+test('incassi e storia: li leggono solo i soci; nessuno li scrive dal telefono, nemmeno l\'admin', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'incassi', GIORNO), { incasso: 100 });
+    await setDoc(doc(ctx.firestore(), 'incassi', GIORNO, 'storia', 'a'), { cosa: 'inserito' });
+  });
+  await assertSucceeds(getDoc(doc(db('anna'), 'incassi', GIORNO)));
+  await assertSucceeds(getDocs(collection(db('anna'), 'incassi')));
+  await assertSucceeds(getDocs(collection(db('anna'), 'incassi', GIORNO, 'storia')));
+  await assertFails(getDoc(doc(db('carla'), 'incassi', GIORNO)));
+  await assertFails(getDocs(collection(db('carla'), 'incassi', GIORNO, 'storia')));
+  await diventaAdmin('anna');
+  for (const uid of ['anna', 'bruno']) {
+    await assertFails(setDoc(doc(db(uid), 'incassi', traGiorni(9)), { incasso: 1 }));
+    await assertFails(setDoc(doc(db(uid), 'incassi', GIORNO), { incasso: 1 }));
+    await assertFails(setDoc(doc(db(uid), 'incassi', GIORNO, 'storia', 'b'), { cosa: 'fondo' }));
+    await assertFails(setDoc(doc(db(uid), 'incassi', GIORNO, 'storia', 'a'), { cosa: 'falsa' }));
+    await assertFails(deleteDoc(doc(db(uid), 'incassi', GIORNO)));
+    await assertFails(deleteDoc(doc(db(uid), 'incassi', GIORNO, 'storia', 'a')));
+  }
+});
+
+test('interruttori degli incassi: li cambia solo l\'admin, solo vero o falso e una data; li legge chiunque', async () => {
+  const imp = (uid) => doc(db(uid), 'impostazioni', 'incassi');
+  const buoni = { attivi: true, avvisoMancante: false, dal: '2026-10-06' };
+  await assertFails(setDoc(imp('anna'), buoni));
+  await diventaAdmin('capo');
+  await assertSucceeds(setDoc(imp('capo'), buoni));
+  await assertSucceeds(setDoc(imp('capo'), { ...buoni, attivi: false, avvisoMancante: true }));
+  for (const male of [{ ...buoni, attivi: 'sì' }, { ...buoni, avvisoMancante: 1 }, { ...buoni, dal: 'oggi' },
+    { attivi: true, avvisoMancante: false }, { ...buoni, extra: 1 }]) {
+    await assertFails(setDoc(imp('capo'), male));
+  }
+  await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'impostazioni', 'incassi')));
+});
