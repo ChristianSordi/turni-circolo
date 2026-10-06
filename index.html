@@ -291,6 +291,53 @@
     #avviso-breve:not([hidden]) { animation: sale .2s ease-out; }
     @keyframes sale { from { translate: 0 24px; opacity: 0; } }
   }
+  /* Incassi */
+  .avviso.incasso { border-left-color: var(--rosso); }
+  .avviso.incasso p { margin: 0 0 12px; }
+  #cassetto { margin: 0 0 18px; }
+  #cassetto h3 { font-size: 1.25rem; }
+  .incassi { list-style: none; margin: 0 0 18px; padding: 0; }
+  .incassi button { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: 100%; padding: 12px 4px;
+                    border: 0; border-bottom: 1px solid var(--linea); background: none; color: inherit; font: inherit; text-align: left; }
+  .incassi .chi { font-weight: 700; }
+  .incassi .soldi { font: 800 1.1rem/1.2 var(--titoli); text-align: right; }
+  .incassi .nota { grid-column: 1 / -1; font-size: .85rem; }
+  .incassi .manca .soldi { color: var(--rosso-testo); }
+  .bollo { display: inline-block; padding: 1px 6px; border-radius: 6px; background: var(--arancio-tenue);
+           color: var(--arancio-testo); font-size: .75rem; font-weight: 700; vertical-align: 1px; }
+  .stampa-tasti { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #f-incasso label { display: block; margin-bottom: 12px; font-weight: 700; }
+  .euro { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .euro::before { content: '€'; color: var(--grigio); font-size: 1.2rem; font-weight: 400; }
+  #f-incasso input, #f-incasso textarea { width: 100%; min-height: 52px; padding: 10px 12px; border: 2px solid var(--linea);
+    border-radius: 12px; background: var(--superficie); color: inherit; font: inherit; font-size: 1.3rem; font-weight: 700; }
+  #f-incasso textarea { margin-top: 6px; font-size: 1rem; font-weight: 400; resize: vertical; }
+  #fi-fondo-box { margin: 0 0 12px; padding: 12px 12px 4px; border: 2px dashed var(--linea); border-radius: 14px; }
+  #fi-fondo-box legend { padding: 0 6px; font: 800 1rem/1.2 var(--titoli); }
+  .link { margin: -4px 0 10px; padding: 4px 0; border: 0; background: none; color: var(--blu); text-decoration: underline; font: inherit; font-size: .9rem; }
+  .fondo-totale { display: flex; justify-content: space-between; margin: 0 0 8px; font-weight: 700; }
+  .riep { margin: 0 0 12px; padding: 10px 12px; border-radius: 14px; background: var(--preso); }
+  .riep div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .riep dt, .riep dd { margin: 0; }
+  .riep .forte { font: 800 1.1rem/1.3 var(--titoli); }
+  #dialogo-serata h3 { margin: 0; font: 800 1.1rem/1.2 var(--titoli); }
+  .storia { list-style: none; margin: 8px 0 16px; padding: 0 0 0 14px; border-left: 3px solid var(--linea); }
+  .storia li { display: grid; gap: 2px; padding-bottom: 12px; }
+  .storia li.modifica { margin-left: -17px; padding-left: 14px; border-left: 3px solid var(--arancio); }
+  .storia .motivo { font-style: italic; }
+  .storia .quando { color: var(--grigio); font-size: .8rem; }
+  #stampa { display: none; }
+  @media print {
+    body { background: #fff; }
+    body > :not(#stampa) { display: none !important; }
+    #stampa { display: block; color: #000; font: 11pt/1.4 'Atkinson Hyperlegible', sans-serif; }
+    #stampa h1 { margin: 0 0 4px; font: 800 18pt/1.2 'Baloo 2', sans-serif; }
+    #stampa table { width: 100%; margin-top: 12px; border-collapse: collapse; }
+    #stampa th, #stampa td { padding: 4px 6px; border-bottom: 1px solid #999; text-align: left; }
+    #stampa th:nth-child(n+3), #stampa td:nth-child(n+3) { text-align: right; }
+    #stampa .subtotale td { font-weight: 700; border-top: 1px solid #000; }
+    #stampa .finale td { border-top: 2px solid #000; }
+  }
 </style>
 </head>
 <body>
@@ -340,10 +387,15 @@
       <button id="chiavi-rifiuta" class="secondario">No, non le ho ricevute</button>
     </div>
   </div>
+  <div id="incasso-arrivo" class="avviso incasso" role="alert" hidden>
+    <p id="incasso-arrivo-testo"></p>
+    <button id="incasso-arrivo-tasto" class="grande">Inserisci l'incasso</button>
+  </div>
   <nav class="schede" aria-label="Sezioni">
     <button id="scheda-calendario" aria-pressed="true">Calendario</button>
     <button id="scheda-classifica" aria-pressed="false">Classifica</button>
     <button id="scheda-chiavi" aria-pressed="false">Chiavi</button>
+    <button id="scheda-incassi" aria-pressed="false" hidden>Incassi</button>
   </nav>
   <nav id="schede-admin" class="schede admin" aria-label="Amministratore" hidden>
     <button id="scheda-soci" aria-pressed="false">Soci</button>
@@ -416,6 +468,20 @@
     <ol id="elenco-chiavi"></ol>
   </section>
 
+  <section id="vista-incassi" hidden>
+    <div id="cassetto" class="chiavi-box"></div>
+    <div class="mese">
+      <button id="incassi-prima" aria-label="Mese precedente">‹</button>
+      <div><h2 id="incassi-mese"></h2><p id="incassi-totale"></p></div>
+      <button id="incassi-dopo" aria-label="Mese successivo">›</button>
+    </div>
+    <ol id="elenco-incassi" class="incassi"></ol>
+    <p id="incassi-vuoto" class="nota" hidden>Nessun incasso in questo mese.</p>
+    <div class="stampa-tasti">
+      <button id="stampa-mese" class="secondario">Stampa il mese</button>
+      <button id="stampa-anno" class="secondario">Stampa l'anno</button>
+    </div>
+  </section>
   <section id="vista-soci" hidden>
     <div id="iscrizioni" class="chiavi-box admin">
       <h3 id="iscrizioni-stato"></h3>
@@ -466,6 +532,41 @@
     </div>
   </form>
 </dialog>
+<dialog id="dialogo-incasso">
+  <form id="f-incasso" novalidate>
+    <h2 id="fi-titolo"></h2>
+    <p id="fi-sotto" class="nota"></p>
+    <div id="fi-campi">
+      <label id="fi-incasso-box">Incasso della serata
+        <span class="euro"><input id="fi-incasso" inputmode="decimal" autocomplete="off" placeholder="0,00"></span></label>
+      <fieldset id="fi-fondo-box">
+        <legend>Fondo cassa lasciato per domani</legend>
+        <label>Banconote<span class="euro"><input id="fi-banconote" inputmode="decimal" autocomplete="off" placeholder="0,00"></span></label>
+        <label>Monete da 1 e 2 €<span class="euro"><input id="fi-monete" inputmode="decimal" autocomplete="off" placeholder="0,00"></span></label>
+        <button type="button" id="fi-mostra-cinquanta" class="link">+ monete da 50 centesimi</button>
+        <label id="fi-cinquanta-box" hidden>Monete da 50 centesimi<span class="euro"><input id="fi-cinquanta" inputmode="decimal" autocomplete="off" placeholder="0,00"></span></label>
+        <p class="fondo-totale"><span>Fondo cassa</span><strong id="fi-totale"></strong></p>
+      </fieldset>
+      <label id="fi-motivo-box">Motivo della modifica (lo vedono tutti)
+        <textarea id="fi-motivo" maxlength="200" rows="2" placeholder="es. non avevo contato le monete del barattolo"></textarea></label>
+    </div>
+    <div id="fi-riepilogo" hidden></div>
+    <p id="fi-errore" class="errore" role="alert" hidden></p>
+    <div class="azioni">
+      <button id="fi-ok" class="grande" type="submit"></button>
+      <button id="fi-annulla" class="secondario" type="button"></button>
+    </div>
+  </form>
+</dialog>
+<dialog id="dialogo-serata">
+  <h2 id="ds-titolo"></h2>
+  <p id="ds-sotto" class="nota"></p>
+  <div id="ds-numeri"></div>
+  <h3>Storia</h3>
+  <ol id="ds-storia" class="storia"></ol>
+  <div id="ds-azioni" class="azioni"></div>
+</dialog>
+<section id="stampa"></section>
 <div id="avviso-breve" role="status" hidden></div>
 
 <script type="module">
@@ -473,7 +574,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=6'; // ?v=: vedi admin.js
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=7'; // ?v=: vedi admin.js
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { normalizzaNome, maiuscole, nomeValido, pinValido } from './profilo.js?v=3'; // ?v=: vedi admin.js
 
@@ -506,6 +607,8 @@ let admin = false;
 let turni = {};      // 'AAAA-MM-GG' → { id, nome }
 let pannello = null; // solo admin: admin.js
 let portachiavi = null; // scheda Chiavi: chiavi.js
+let cassa = null;       // registro degli incassi: incassi.js, caricato solo se l'admin l'ha acceso
+let impIncassi = {};    // impostazioni/incassi: { attivi, avvisoMancante, dal }
 let anno = new Date().getFullYear();
 let mese = new Date().getMonth();
 let periodo = String(anno); // classifica: 'AAAA' o null = da sempre
@@ -714,6 +817,7 @@ function disegna() {
   disegnaClassifica();
   pannello?.disegnaSoci();
   portachiavi?.disegna();
+  cassa?.disegna();
 }
 
 // Sotto il calendario, per tutti: ogni socio in ordine alfabetico con i turni segnati nel mese che si sta guardando.
@@ -801,9 +905,9 @@ async function disattivaPromemoria() {
   }
 }
 
-// Schede: 'calendario', 'classifica', 'chiavi' (chiavi.js) o, solo per l'admin, 'soci', 'attivita', 'orari' (le mostra admin.js).
+// Schede: 'calendario', 'classifica', 'chiavi' (chiavi.js), 'incassi' (incassi.js) o, solo per l'admin, 'soci', 'attivita', 'orari' (le mostra admin.js).
 function mostraVista(nome) {
-  for (const v of ['calendario', 'classifica', 'chiavi', 'soci', 'attivita', 'orari']) {
+  for (const v of ['calendario', 'classifica', 'chiavi', 'incassi', 'soci', 'attivita', 'orari']) {
     $(`vista-${v}`).hidden = v !== nome;
     $(`scheda-${v}`).setAttribute('aria-pressed', String(v === nome));
   }
@@ -912,11 +1016,12 @@ function mostraAgenda() {
     disegna();
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; $('stato').hidden = false; });
   onSnapshot(doc(db, 'elenco', 'soci'), (snap) => { soci = snap.data()?.soci ?? {}; disegna(); }, () => {}); // senza: niente elenco
-  import('./chiavi.js?v=3') // ?v=: vedi admin.js
+  import('./chiavi.js?v=4') // ?v=: vedi admin.js
     .then(({ avviaChiavi }) => { portachiavi = avviaChiavi({ db, io, admin, soci: () => soci, $, el, chiedi, avvisoBreve, mostraVista }); })
     .catch(() => chiedi('Scheda Chiavi non caricata. Ricarica la pagina.', { titolo: 'Errore' }));
+  ascoltaIncassi();
   if (admin) {
-    import('./admin.js?v=9') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
+    import('./admin.js?v=10') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
       .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }); })
       .catch(() => chiedi('Pannello admin non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
   }
@@ -937,6 +1042,20 @@ function ascoltaOrari() {
     $('chiude').value = orari.chiude ?? '';
     $('chiusura').value = orari.chiusura ?? '';
     if (io) disegna();
+  }, () => {});
+}
+
+// Registro degli incassi: si carica la prima volta che l'admin lo accende; spento, sparisce la scheda (incassi.js).
+let cassaInArrivo = null;
+function ascoltaIncassi() {
+  onSnapshot(doc(db, 'impostazioni', 'incassi'), (snap) => {
+    impIncassi = snap.data() ?? {};
+    if (!impIncassi.attivi && !cassaInArrivo) return;
+    cassaInArrivo ??= import('./incassi.js?v=1') // ?v=: vedi admin.js
+      .then(({ avviaIncassi }) => (cassa = avviaIncassi({ db, funzioni, io, admin, turni: () => turni, orari: () => orari,
+        impostazioni: () => impIncassi, $, el, chiedi, avvisoBreve, mostraVista })))
+      .catch(() => chiedi('Registro degli incassi non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
+    cassaInArrivo.then((c) => c?.accendi(!!impIncassi.attivi));
   }, () => {});
 }
 

@@ -4,7 +4,7 @@
 // (passaggioChiavi); i passaggi li scrive functions/index.js. Stessi URL di Firebase di index.html.
 import { doc, onSnapshot, runTransaction, collection, query, orderBy, limit }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, fraseChiavi, titoloGiorno, mazzi } from './calendario.js?v=6'; // ?v=: vedi admin.js
+import { iso, fraseChiavi, titoloGiorno, mazzi } from './calendario.js?v=7'; // ?v=: vedi admin.js
 
 const senza = (m, id) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== id));
 const piuMazzi = (n) => (n > 1 ? `${n} mazzi` : '');
