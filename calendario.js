@@ -153,3 +153,84 @@ export const fraseChiavi = ({ azione, nome, altro, mazzi: n }) => ({
   riceve: `${altro} ha dato le chiavi a ${nome}`,
   rifiuta: `${nome} dice di non aver ricevuto le chiavi da ${altro}`,
 }[azione] ?? `${nome}: ${azione}`);
+
+// --- Incassi (incassi.js e functions/index.js) ---
+
+// Serata a cui va l'incasso adesso: prima dell'orario di apertura di oggi è quella di ieri (si chiude dopo mezzanotte
+// e il giorno dopo, fino all'apertura, si può ancora inserire), da quell'ora in poi è quella di oggi.
+const APRE = '21:00';
+export function serataAperta(ora, apre) {
+  const [h, m] = (apre || APRE).split(':').map(Number);
+  const prima = ora.getHours() * 60 + ora.getMinutes() < h * 60 + m;
+  return iso(new Date(ora.getFullYear(), ora.getMonth(), ora.getDate() - (prima ? 1 : 0)));
+}
+
+// Fino a quando si inserisce la serata: "sabato alle 21:00".
+export function fineSerata(g, apre) {
+  const d = giorno(g);
+  d.setDate(d.getDate() + 1);
+  return `${GIORNI[d.getDay()]} alle ${apre || APRE}`;
+}
+
+// "312,50" o "312.50" → 31250 centesimi; vuoto → 0; "1.290,50", "€ 50", "50," → null (si chiede di riscrivere).
+export function centesimi(testo) {
+  const t = String(testo ?? '').trim().replace(',', '.');
+  if (t === '') return 0;
+  if (!/^\d{1,5}(\.\d{1,2})?$/.test(t)) return null;
+  const [e, c = ''] = t.split('.');
+  return Number(e) * 100 + Number(c.padEnd(2, '0'));
+}
+
+// 129050 → "€ 1.290,50" (senza toLocaleString: uguale su ogni telefono).
+export const euro = (c) =>
+  `€ ${String(Math.floor(c / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${String(c % 100).padStart(2, '0')}`;
+
+export const fondo = (i) => (i.banconote ?? 0) + (i.monete ?? 0) + (i.cinquanta ?? 0);
+
+// Cosa porta ogni azione. Importi interi in centesimi, 0 … 1 000 000 (€ 10 000); motivo 3 … 200 caratteri nelle modifiche.
+const CAMPI_INCASSO = { inserisci: ['incasso', 'banconote', 'monete', 'cinquanta'], incasso: ['incasso'], fondo: ['banconote', 'monete', 'cinquanta'] };
+export function datiIncasso(azione, d = {}) {
+  const campi = CAMPI_INCASSO[azione];
+  if (!campi || typeof d.giorno !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d.giorno)) return null;
+  const valori = {};
+  for (const c of campi) {
+    if (!Number.isInteger(d[c]) || d[c] < 0 || d[c] > 1000000) return null;
+    valori[c] = d[c];
+  }
+  if (azione === 'inserisci') return { giorno: d.giorno, valori };
+  const motivo = typeof d.motivo === 'string' ? d.motivo.trim() : '';
+  return motivo.length >= 3 && motivo.length <= 200 ? { giorno: d.giorno, valori, motivo } : null;
+}
+
+// Chi può cosa (il server decide, l'app lo usa per mostrare solo i pulsanti giusti). null = sì, altrimenti il perché.
+// incasso: il documento della serata o null; ultimo: giorno dell'incasso più recente; serata: serataAperta.
+export function permessoIncasso({ azione, giorno: g, io, admin, incasso, ultimo, serata }) {
+  if (g > serata) return 'chiusa';
+  if (azione === 'inserisci') return incasso ? 'esiste' : admin || g === serata ? null : 'chiusa';
+  if (!incasso) return 'manca';
+  if (admin) return azione === 'incasso' || azione === 'fondo' ? null : 'dati';
+  if (azione === 'incasso') {
+    if (g !== serata) return 'chiusa';
+    return io === incasso.inseritoDa.id || io === incasso.turnista.id ? null : 'non-tuo';
+  }
+  if (azione === 'fondo') return g === ultimo ? null : 'non-ultimo';
+  return 'dati';
+}
+
+// Righe del registro di un mese, dalla più recente: le serate con l'incasso e, da dal (accensione del registro) alla
+// serata aperta, quelle con un turno e senza incasso ("manca").
+export const righeIncassi = (anno, mese, turni, incassi, serata, dal) => griglia(anno, mese)
+  .filter((g) => g && (incassi[g] || (turni[g] && g >= dal && g <= serata)))
+  .reverse()
+  .map((g) => ({ giorno: g, incasso: incassi[g] ?? null, turno: turni[g] ?? null }));
+
+// Somma degli incassi dei giorni che iniziano con prefisso ('AAAA-MM' o 'AAAA').
+export const totale = (incassi, prefisso) =>
+  Object.entries(incassi).filter(([g]) => g.startsWith(prefisso)).reduce((s, [, i]) => s + i.incasso, 0);
+
+// Una riga della storia di un incasso in parole.
+export function fraseIncasso({ cosa, chi, prima, dopo }) {
+  if (cosa === 'inserito') return `${chi.nome} l'ha inserito: incasso ${euro(dopo.incasso)}, fondo cassa ${euro(fondo(dopo))}`;
+  if (cosa === 'incasso') return `${chi.nome} ha corretto l'incasso: ${euro(prima.incasso)} → ${euro(dopo.incasso)}`;
+  return `${chi.nome} ha aggiornato il fondo cassa: ${euro(fondo(prima))} → ${euro(fondo(dopo))}`;
+}

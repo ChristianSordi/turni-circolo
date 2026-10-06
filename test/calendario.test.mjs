@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi, serataAperta, fineSerata, centesimi, euro, fondo, datiIncasso, permessoIncasso, righeIncassi, totale, fraseIncasso } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -176,4 +176,108 @@ test('fraseChiavi: frasi intere con i nomi, anche per le righe di prima dei mazz
   assert.equal(fraseChiavi({ azione: 'assegna', nome: 'Anna Rossi', mazzi: 2 }), 'l\'amministratore ha segnato che Anna Rossi ha 2 mazzi di chiavi');
   assert.equal(fraseChiavi({ azione: 'toglie', nome: 'Anna Rossi' }), 'l\'amministratore ha segnato che Anna Rossi non ha più le chiavi');
   assert.equal(fraseChiavi({ azione: 'riceve', nome: 'Bruno Bianchi', altro: 'Anna Rossi' }), 'Anna Rossi ha dato le chiavi a Bruno Bianchi');
+});
+
+test('serataAperta: prima dell\'apertura è ieri sera, da quell\'ora in poi stasera', () => {
+  assert.equal(serataAperta(new Date(2026, 9, 10, 0, 40), '21:00'), '2026-10-09'); // sabato 00:40 → venerdì
+  assert.equal(serataAperta(new Date(2026, 9, 10, 20, 59), '21:00'), '2026-10-09');
+  assert.equal(serataAperta(new Date(2026, 9, 10, 21, 0), '21:00'), '2026-10-10');
+  assert.equal(serataAperta(new Date(2026, 9, 10, 18, 30), '18:00'), '2026-10-10');
+  assert.equal(serataAperta(new Date(2026, 9, 10, 20, 0), ''), '2026-10-09'); // orario mancante = 21:00
+  assert.equal(serataAperta(new Date(2026, 9, 1, 3, 0), undefined), '2026-09-30'); // a cavallo del mese
+});
+
+test('fineSerata: fino all\'apertura del giorno dopo', () => {
+  assert.equal(fineSerata('2026-10-09', '21:00'), 'sabato alle 21:00');
+  assert.equal(fineSerata('2026-10-11', ''), 'lunedì alle 21:00');
+});
+
+test('centesimi: virgola o punto, spazi, vuoto = 0; il resto è rifiutato', () => {
+  assert.equal(centesimi('312,50'), 31250);
+  assert.equal(centesimi('312.50'), 31250);
+  assert.equal(centesimi(' 312,5 '), 31250);
+  assert.equal(centesimi('312'), 31200);
+  assert.equal(centesimi('0'), 0);
+  assert.equal(centesimi(''), 0);
+  assert.equal(centesimi('  '), 0);
+  for (const male of ['1.290,50', '€ 50', '50,', '12,345', '-5', 'dieci', '1e3', '100000']) assert.equal(centesimi(male), null, male);
+});
+
+test('euro: sempre due decimali e il punto delle migliaia', () => {
+  assert.equal(euro(31250), '€ 312,50');
+  assert.equal(euro(0), '€ 0,00');
+  assert.equal(euro(5), '€ 0,05');
+  assert.equal(euro(129050), '€ 1.290,50');
+  assert.equal(euro(1000000), '€ 10.000,00');
+});
+
+test('fondo: banconote + monete + 50 centesimi, i campi mancanti valgono 0', () => {
+  assert.equal(fondo({ banconote: 6000, monete: 1000, cinquanta: 150 }), 7150);
+  assert.equal(fondo({ banconote: 6000 }), 6000);
+});
+
+test('datiIncasso: campi giusti per ogni azione, interi tra 0 e 1 000 000, motivo nelle modifiche', () => {
+  const n = { incasso: 31250, banconote: 6000, monete: 1000, cinquanta: 0 };
+  assert.deepEqual(datiIncasso('inserisci', { giorno: '2026-10-09', ...n, motivo: 'ignorato' }), { giorno: '2026-10-09', valori: n });
+  assert.deepEqual(datiIncasso('incasso', { giorno: '2026-10-09', incasso: 100, banconote: 5, motivo: '  conto rifatto ' }),
+    { giorno: '2026-10-09', valori: { incasso: 100 }, motivo: 'conto rifatto' });
+  assert.deepEqual(datiIncasso('fondo', { giorno: '2026-10-09', banconote: 1, monete: 2, cinquanta: 3, motivo: 'aperitivo' }),
+    { giorno: '2026-10-09', valori: { banconote: 1, monete: 2, cinquanta: 3 }, motivo: 'aperitivo' });
+  for (const male of [
+    ['inserisci', { giorno: '2026-10-09', ...n, incasso: -1 }],
+    ['inserisci', { giorno: '2026-10-09', ...n, incasso: 1.5 }],
+    ['inserisci', { giorno: '2026-10-09', ...n, incasso: 1000001 }],
+    ['inserisci', { giorno: '2026-10-09', ...n, incasso: '100' }],
+    ['inserisci', { giorno: '9 ottobre', ...n }],
+    ['incasso', { giorno: '2026-10-09', incasso: 100 }],
+    ['incasso', { giorno: '2026-10-09', incasso: 100, motivo: ' ok ' }],
+    ['fondo', { giorno: '2026-10-09', banconote: 1, monete: 2, cinquanta: 3, motivo: 'x'.repeat(201) }],
+    ['cancella', { giorno: '2026-10-09' }],
+  ]) assert.equal(datiIncasso(...male), null, JSON.stringify(male));
+});
+
+test('permessoIncasso: chi può cosa, e quando', () => {
+  const serata = '2026-10-09';
+  const i = { inseritoDa: { id: 'anna' }, turnista: { id: 'bruno' } };
+  const p = (o) => permessoIncasso({ azione: 'inserisci', giorno: serata, io: 'carla', admin: false, incasso: null, ultimo: null, serata, ...o });
+  assert.equal(p({}), null);
+  assert.equal(p({ incasso: i }), 'esiste');
+  assert.equal(p({ giorno: '2026-10-08' }), 'chiusa');
+  assert.equal(p({ giorno: '2026-10-08', admin: true }), null);
+  assert.equal(p({ giorno: '2026-10-10', admin: true }), 'chiusa'); // il futuro nemmeno l'admin
+  assert.equal(p({ azione: 'incasso' }), 'manca');
+  assert.equal(p({ azione: 'incasso', incasso: i }), 'non-tuo');
+  assert.equal(p({ azione: 'incasso', incasso: i, io: 'anna' }), null);
+  assert.equal(p({ azione: 'incasso', incasso: i, io: 'bruno' }), null);
+  assert.equal(p({ azione: 'incasso', incasso: i, io: 'bruno', giorno: '2026-10-08' }), 'chiusa');
+  assert.equal(p({ azione: 'incasso', incasso: i, giorno: '2026-10-01', admin: true }), null);
+  assert.equal(p({ azione: 'fondo', incasso: i, ultimo: serata }), null);
+  assert.equal(p({ azione: 'fondo', incasso: i, giorno: '2026-10-08', ultimo: serata }), 'non-ultimo');
+  assert.equal(p({ azione: 'fondo', incasso: i, giorno: '2026-10-08', ultimo: '2026-10-08' }), null); // è il più recente
+  assert.equal(p({ azione: 'fondo', incasso: i, giorno: '2026-10-01', ultimo: serata, admin: true }), null);
+  assert.equal(p({ azione: 'boh', incasso: i }), 'dati');
+});
+
+test('righeIncassi: serate con incasso e, da dal alla serata aperta, quelle col turno senza incasso', () => {
+  const turni = { '2026-10-01': { id: 'a', nome: 'Anna' }, '2026-10-03': { id: 'b', nome: 'Bruno' },
+    '2026-10-05': { id: 'c', nome: 'Carla' }, '2026-10-09': { id: 'a', nome: 'Anna' }, '2026-10-20': { id: 'b', nome: 'Bruno' } };
+  const incassi = { '2026-10-03': { incasso: 100 }, '2026-09-30': { incasso: 5 } };
+  assert.deepEqual(righeIncassi(2026, 9, turni, incassi, '2026-10-09', '2026-10-02').map((r) => `${r.giorno}:${r.incasso ? 'ok' : 'manca'}`),
+    ['2026-10-09:manca', '2026-10-05:manca', '2026-10-03:ok']); // 1 ottobre prima di dal, 20 nel futuro
+  assert.deepEqual(righeIncassi(2026, 9, turni, incassi, '2026-10-09', '2026-10-02')[2], { giorno: '2026-10-03', incasso: { incasso: 100 }, turno: turni['2026-10-03'] });
+});
+
+test('totale: somma degli incassi del mese o dell\'anno', () => {
+  const incassi = { '2026-09-30': { incasso: 5 }, '2026-10-03': { incasso: 100 }, '2026-10-09': { incasso: 250 } };
+  assert.equal(totale(incassi, '2026-10'), 350);
+  assert.equal(totale(incassi, '2026'), 355);
+  assert.equal(totale(incassi, '2025'), 0);
+});
+
+test('fraseIncasso: la storia in parole', () => {
+  const chi = { id: 'b', nome: 'Bruno Neri' };
+  const n = { incasso: 18000, banconote: 6000, monete: 1000, cinquanta: 0 };
+  assert.equal(fraseIncasso({ cosa: 'inserito', chi, prima: null, dopo: n }), 'Bruno Neri l\'ha inserito: incasso € 180,00, fondo cassa € 70,00');
+  assert.equal(fraseIncasso({ cosa: 'incasso', chi, prima: n, dopo: { ...n, incasso: 18800 } }), 'Bruno Neri ha corretto l\'incasso: € 180,00 → € 188,00');
+  assert.equal(fraseIncasso({ cosa: 'fondo', chi, prima: n, dopo: { ...n, monete: 1500 } }), 'Bruno Neri ha aggiornato il fondo cassa: € 70,00 → € 75,00');
 });
