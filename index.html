@@ -526,6 +526,7 @@
     <input id="d-input" inputmode="numeric" maxlength="4" autocomplete="off" aria-label="Nuovo PIN" hidden>
     <select id="d-socio" aria-label="Socio" hidden></select>
     <div class="azioni">
+      <button id="d-cassa" class="secondario" value="cassa" hidden></button>
       <button id="d-ok" class="grande" value="ok"></button>
       <button id="d-altro" class="secondario pericolo" value="altro" hidden></button>
       <button id="d-annulla" class="secondario" value="annulla"></button>
@@ -626,8 +627,8 @@ let soci = {};       // elenco/soci: id → nome, lo tiene aggiornato functions/
 const breve = (nome) => { const [n, c] = nome.split(' '); return c ? `${n}\n${c.length > 3 ? c.slice(0, 3) + '.' : c}` : n; }; // "Mario Ros." nelle caselle
 
 // Al posto di alert/confirm/prompt: finestra con pulsanti grandi, uno sotto l'altro.
-// Risolve true (ok), 'altro' (terzo pulsante), false; o il testo se c'è input; o l'id scelto se c'è socio (id di partenza).
-function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = null, input = false, socio = null } = {}) {
+// Risolve true (ok), 'altro' (terzo pulsante), 'cassa' (pulsante dell'incasso), false; o il testo se c'è input; o l'id scelto se c'è socio (id di partenza).
+function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = null, input = false, socio = null, cassa = null } = {}) {
   const d = $('dialogo');
   $('d-titolo').textContent = titolo;
   $('d-titolo').hidden = !titolo;
@@ -645,10 +646,13 @@ function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = 
   $('d-altro').hidden = !altro;
   $('d-annulla').textContent = annulla ?? '';
   $('d-annulla').hidden = !annulla;
+  $('d-cassa').textContent = cassa ?? '';
+  $('d-cassa').hidden = !cassa;
   d.returnValue = '';
   d.showModal();
   return new Promise((fine) => {
     d.onclose = () => {
+      if (d.returnValue === 'cassa') return fine('cassa');
       const si = d.returnValue === 'ok';
       fine(input ? (si ? $('d-input').value.trim() : undefined) : socio ? (si ? $('d-socio').value : undefined)
         : d.returnValue === 'altro' ? 'altro' : si);
@@ -913,15 +917,24 @@ function mostraVista(nome) {
   }
 }
 
+// Finestra di un giorno del calendario: col registro acceso, nella serata aperta o in una con l'incasso c'è anche il
+// pulsante dell'incasso (incassi.js). Toccandolo si apre l'incasso e chi chiama riceve "annullato".
+async function chiediGiorno(data, testo, opzioni) {
+  const r = await chiedi(testo, { ...opzioni, cassa: cassa?.etichetta(data) ?? null });
+  if (r !== 'cassa') return r;
+  cassa.apri(data);
+  return opzioni.input || opzioni.socio ? undefined : false;
+}
+
 async function tocca(data) {
   const t = turni[data];
   const quando = giornoLeggibile(data);
   const passato = data < oggi();
   try {
     if (!t) {
-      if (passato && !admin) return avvisoBreve('Questo giorno è già passato.');
+      if (passato && !admin) return cassa?.etichetta(data) ? cassa.apri(data) : avvisoBreve('Questo giorno è già passato.');
       if (admin) { // segna chiunque, anche nei giorni passati
-        const id = await chiedi(passato ? 'Il giorno è passato. Scegli chi ha fatto il turno.' : 'Scegli chi fa il turno.', {
+        const id = await chiediGiorno(data, passato ? 'Il giorno è passato. Scegli chi ha fatto il turno.' : 'Scegli chi fa il turno.', {
           titolo: quando, ok: 'Segna il turno', annulla: 'Annulla', socio: io.id });
         if (!id) return;
         const nome = id === io.id ? io.nome : soci[id];
@@ -933,12 +946,12 @@ async function tocca(data) {
       const testo = chiuso(data, orari.chiusura)
         ? `Il circolo è ${testoChiusura(orari.chiusura)}. Se vuoi aprirlo tu, segnati: il turno lo vedono tutti, come negli altri giorni.`
         : ore ? `Vuoi segnarti per il turno ${ore}?` : 'Vuoi segnarti per questo turno?';
-      if (await chiedi(testo, { titolo: quando, ok: chiuso(data, orari.chiusura) ? 'Apro io e mi segno' : 'Segnami', annulla: 'Annulla' })) {
+      if (await chiediGiorno(data, testo, { titolo: quando, ok: chiuso(data, orari.chiusura) ? 'Apro io e mi segno' : 'Segnami', annulla: 'Annulla' })) {
         await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome });
         avvisoBreve(`Turno segnato: ${quando}`);
       }
     } else if (t.id === io.id && !passato) {
-      const scelta = await chiedi(t.cedo
+      const scelta = await chiediGiorno(data, t.cedo
         ? 'Stai cercando un sostituto: il turno resta tuo finché qualcuno non lo prende. Se ora puoi farlo tu, tocca «Lo faccio io» e nessuno potrà più prenderlo.'
         : 'È il tuo turno. Se non puoi farlo, cerca un sostituto: il turno resta tuo finché qualcuno non lo prende. Se lo togli, il giorno torna libero.', {
         titolo: quando, ok: t.cedo ? 'Lo faccio io' : 'Cerco un sostituto', altro: 'Togli il turno', annulla: 'Annulla',
@@ -956,7 +969,7 @@ async function tocca(data) {
         avvisoBreve('Fatto: ora tutti vedono che cerchi un sostituto');
       }
     } else if (t.cedo && !passato) {
-      const scelta = await chiedi(`${t.nome} cerca un sostituto. Se lo prendi, il turno diventa tuo.`, {
+      const scelta = await chiediGiorno(data, `${t.nome} cerca un sostituto. Se lo prendi, il turno diventa tuo.`, {
         titolo: quando, ok: 'Prendo io il turno', altro: admin ? 'Togli il turno' : null, annulla: 'Annulla',
       });
       if (scelta === 'altro') {
@@ -967,12 +980,12 @@ async function tocca(data) {
         avvisoBreve(`Fatto: il turno di ${quando} ora è tuo`);
       }
     } else if (admin) {
-      if (await chiedi(`Vuoi togliere il turno di ${t.nome}?`, { titolo: quando, ok: 'Togli il turno', annulla: 'Annulla' })) {
+      if (await chiediGiorno(data, `Vuoi togliere il turno di ${t.nome}?`, { titolo: quando, ok: 'Togli il turno', annulla: 'Annulla' })) {
         await deleteDoc(doc(db, 'turni', data));
         avvisoBreve(`Turno tolto: ${quando}`);
       }
     } else {
-      await chiedi(`Turno di ${t.nome}`, { titolo: quando });
+      await chiediGiorno(data, `Turno di ${t.nome}`, { titolo: quando });
     }
   } catch (e) {
     await chiedi(e.code !== 'permission-denied' ? 'Controlla la connessione e riprova.'
