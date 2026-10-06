@@ -10,7 +10,7 @@ Object.assign(process.env, { VAPID_PUBLIC: chiavi.publicKey, VAPID_PRIVATE: chia
 const inviate = [];
 webpush.sendNotification = async (sub, payload) => { inviate.push({ endpoint: sub.endpoint, ...JSON.parse(payload) }); };
 
-const { promemoria, attivita, elenco, chiavi: passaggiChiavi, entra } = await import('./index.js');
+const { promemoria, attivita, elenco, chiavi: passaggiChiavi, entra, incasso } = await import('./index.js');
 const { getFirestore } = await import('firebase-admin/firestore');
 const { iso } = await import('./calendario.js');
 const db = getFirestore();
@@ -167,5 +167,87 @@ const nuovo = await prova('tel-ezio', ezio);
 assert.deepEqual(nuovo.io, { id: 'tel-ezio', nome: 'Ezio Verdi', segreto: await chiave('Ezio Verdi', '4321') });
 assert.deepEqual((await db.doc(`persone/${nuovo.io.segreto}`).get()).data(), { id: 'tel-ezio', nome: 'Ezio Verdi' });
 assert.equal((await db.doc('dispositivi/tel-ezio').get()).data().id, 'tel-ezio');
+
+// Incassi: chi può cosa, la storia, il turno segnato da solo, l'avviso al turnista.
+const { serataAperta } = await import('./calendario.js');
+const cassa = (uid, data) => incasso.run({ auth: { uid }, data });
+const rifiuto = async (uid, data) => {
+  try { await cassa(uid, data); } catch (e) { return e.details?.motivo; }
+  assert.fail(`doveva essere rifiutato: ${JSON.stringify(data)}`);
+};
+const sposta = (g, n) => { const d = new Date(g.slice(0, 4), g.slice(5, 7) - 1, g.slice(8)); d.setDate(d.getDate() + n); return iso(d); };
+const S = serataAperta(new Date(), '21:00');
+const PRIMA = sposta(S, -1);
+const DOPO = sposta(S, 1);
+const numeri = { incasso: 31250, banconote: 6000, monete: 1000, cinquanta: 0 };
+const motivo = 'contate le monete del barattolo';
+const storiaDi = async (g) => (await db.collection(`incassi/${g}/storia`).orderBy('quando').get()).docs.map((d) => d.data());
+await db.doc('impostazioni/circolo').set({ apre: '21:00', chiude: '00:00', chiusura: null });
+for (const g of [S, PRIMA, DOPO]) { await db.recursiveDelete(db.doc(`incassi/${g}`)); await db.doc(`turni/${g}`).delete(); }
+await db.doc('impostazioni/incassi').delete();
+
+assert.equal(await rifiuto('anna', { azione: 'inserisci', giorno: S, ...numeri }), 'spenti');
+await db.doc('impostazioni/incassi').set({ attivi: true, avvisoMancante: false, dal: PRIMA });
+assert.equal(await rifiuto('sconosciuto', { azione: 'inserisci', giorno: S, ...numeri }), 'non-socio');
+assert.equal(await rifiuto('anna', { azione: 'inserisci', giorno: S, ...numeri, incasso: -1 }), 'dati');
+assert.equal(await rifiuto('anna', { azione: 'inserisci', giorno: S, ...numeri, incasso: 1.5 }), 'dati');
+assert.equal(await rifiuto('anna', { azione: 'inserisci', giorno: PRIMA, ...numeri }), 'chiusa');
+assert.equal(await rifiuto('capo', { azione: 'inserisci', giorno: DOPO, ...numeri }), 'chiusa'); // il futuro nemmeno l'admin
+
+// Serata senza turno: chi inserisce diventa il turnista, nessun avviso.
+inviate.length = 0;
+assert.deepEqual(await cassa('anna', { azione: 'inserisci', giorno: S, ...numeri }), { ok: true });
+assert.deepEqual((await db.doc(`turni/${S}`).get()).data(), ANNA);
+assert.deepEqual(inviate, []);
+await db.recursiveDelete(db.doc(`incassi/${S}`));
+
+// Turno di Bruno, incasso inserito da Anna: avviso a Bruno, il turno resta suo.
+await db.doc(`turni/${S}`).set(BRUNO);
+await cassa('anna', { azione: 'inserisci', giorno: S, ...numeri });
+const salvato = (await db.doc(`incassi/${S}`).get()).data();
+assert.deepEqual({ ...salvato, inserito: null }, { ...numeri, turnista: BRUNO, inseritoDa: ANNA, inserito: null });
+assert.ok(salvato.inserito.toMillis() > Date.now() - 60e3);
+assert.deepEqual(inviate.map((i) => `${i.endpoint} ${i.titolo}`), ['https://push.prova/bruno Incasso inserito']);
+assert.match(inviate[0].testo, /^Anna Rossi ha inserito l'incasso del tuo turno di .+: € 312,50\.$/);
+assert.deepEqual((await db.doc(`turni/${S}`).get()).data(), BRUNO);
+assert.equal(await rifiuto('bruno', { azione: 'inserisci', giorno: S, ...numeri }), 'esiste');
+
+// Correzioni dell'incasso: chi l'ha inserito e il turnista, col motivo, con un valore diverso.
+assert.equal(await rifiuto('anna', { azione: 'incasso', giorno: S, incasso: 32000 }), 'dati');
+assert.equal(await rifiuto('anna', { azione: 'incasso', giorno: S, incasso: 31250, motivo }), 'uguale');
+assert.equal(await rifiuto('tel1', { azione: 'incasso', giorno: S, incasso: 32000, motivo }), 'non-tuo'); // Dina
+await cassa('bruno', { azione: 'incasso', giorno: S, incasso: 32000, motivo });
+await cassa('anna', { azione: 'incasso', giorno: S, incasso: 32050, motivo: '  avevo sbagliato  ' });
+// Fondo: chiunque, ma solo il più recente.
+await cassa('tel1', { azione: 'fondo', giorno: S, banconote: 6000, monete: 1500, cinquanta: 0, motivo: 'aperitivo del pomeriggio' });
+const storia = await storiaDi(S);
+assert.deepEqual(storia.map((r) => `${r.chi.id}:${r.cosa}`), ['anna:inserito', 'bruno:incasso', 'anna:incasso', 'dina:fondo']);
+assert.equal(storia[0].prima, null);
+assert.deepEqual(storia[0].dopo, numeri);
+assert.deepEqual(storia[1].prima, numeri);
+assert.deepEqual(storia[1].dopo, { ...numeri, incasso: 32000 });
+assert.equal(storia[2].motivo, 'avevo sbagliato');
+assert.deepEqual(storia[3].dopo, { ...numeri, incasso: 32050, monete: 1500 });
+assert.ok(storia.every((r) => r.quando.toMillis() > 0));
+const dopoModifiche = (await db.doc(`incassi/${S}`).get()).data();
+assert.equal(dopoModifiche.modificato, true);
+assert.equal(dopoModifiche.incasso, 32050);
+assert.equal(dopoModifiche.monete, 1500);
+
+// Serata passata: solo l'admin inserisce e corregge; il fondo più recente resta quello di S.
+assert.equal(await rifiuto('anna', { azione: 'inserisci', giorno: PRIMA, ...numeri }), 'chiusa');
+await cassa('capo', { azione: 'inserisci', giorno: PRIMA, ...numeri });
+assert.deepEqual((await db.doc(`turni/${PRIMA}`).get()).data(), { id: 'capo', nome: 'Capo Circolo' });
+const fondo1 = { banconote: 100, monete: 0, cinquanta: 0, motivo };
+assert.equal(await rifiuto('tel1', { azione: 'fondo', giorno: PRIMA, ...fondo1 }), 'non-ultimo');
+assert.equal(await rifiuto('capo', { azione: 'incasso', giorno: PRIMA, incasso: 31250, motivo }), 'uguale');
+await cassa('capo', { azione: 'fondo', giorno: PRIMA, ...fondo1 });
+assert.equal(await rifiuto('anna', { azione: 'fondo', giorno: DOPO, ...fondo1 }), 'chiusa');
+assert.equal(await rifiuto('anna', { azione: 'incasso', giorno: DOPO, incasso: 1, motivo }), 'chiusa');
+assert.equal((await storiaDi(PRIMA)).length, 2);
+
+// Spento: niente più scritture.
+await db.doc('impostazioni/incassi').set({ attivi: false, avvisoMancante: false, dal: PRIMA });
+assert.equal(await rifiuto('anna', { azione: 'fondo', giorno: S, ...fondo1 }), 'spenti');
 
 console.log('e2e funzioni: tutto ok');

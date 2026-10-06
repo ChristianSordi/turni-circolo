@@ -5,9 +5,9 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentWritten, onDocumentWrittenWithAuthContext } from 'firebase-functions/v2/firestore';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
-import { getFirestore, FieldPath } from 'firebase-admin/firestore';
+import { getFirestore, FieldPath, FieldValue } from 'firebase-admin/firestore';
 import webpush from 'web-push';
-import { iso, avvisi, movimenti, movimentiChiavi } from './calendario.js'; // copiati dalla radice prima del deploy (firebase.json)
+import { iso, avvisi, movimenti, movimentiChiavi, giornoLeggibile, serataAperta, datiIncasso, permessoIncasso, euro } from './calendario.js'; // copiati dalla radice prima del deploy (firebase.json)
 import { maiuscole, nomeValido, pinValido, chiave, idTentativi, attesa, ERRORI_MAX } from './profilo.js';
 
 initializeApp();
@@ -90,17 +90,73 @@ export const entra = onCall({ ...MINIMO, maxInstances: 3 }, async (req) => {
   return risposta;
 });
 
-// Avviso agli admin (admin/{id}: uid del telefono o id del socio) quando un nome si ferma per troppi PIN sbagliati.
-async function avvisaAdmin(db, nome) {
-  vapid();
+// Id dei soci admin (admin/{id}: uid del telefono o id del socio), per gli avvisi.
+async function idAdmin(db) {
   const ids = new Set();
   for (const a of (await db.collection('admin').get()).docs) {
     ids.add((await db.doc(`dispositivi/${a.id}`).get()).data()?.id ?? a.id);
   }
-  for (const a of ids) {
+  return ids;
+}
+
+// Avviso agli admin quando un nome si ferma per troppi PIN sbagliati.
+async function avvisaAdmin(db, nome) {
+  vapid();
+  for (const a of await idAdmin(db)) {
     await invia(db, { a, titolo: 'Troppi PIN sbagliati', testo: `Con il nome ${nome} sono stati provati ${ERRORI_MAX} PIN sbagliati: il nome è bloccato. Se non è stato il socio, qualcuno ci sta provando. Per sbloccarlo: Soci → Reimposta PIN.` });
   }
 }
+
+// Registro degli incassi: l'unica porta per scriverlo (firestore.rules vieta il telefono). Inserisci, correggi
+// l'incasso o aggiorna il fondo: controlla chi può cosa (calendario.js, permessoIncasso) e, nella stessa transazione,
+// salva i numeri e una riga di storia che non si tocca più. Serata senza turno: chi inserisce diventa il turnista.
+// Rifiuti: failed-precondition con details.motivo (vedi permessoIncasso, più spenti, non-socio, uguale, dati).
+export const incasso = onCall({ ...MINIMO, maxInstances: 3 }, async (req) => {
+  const db = getFirestore();
+  const no = (motivo) => { throw new HttpsError('failed-precondition', motivo, { motivo }); };
+  const azione = req.data?.azione;
+  const dati = datiIncasso(azione, req.data ?? {});
+  if (!req.auth?.uid || !dati) no('dati');
+  const { giorno, valori, motivo } = dati;
+  const ref = db.doc(`incassi/${giorno}`);
+  const esito = await db.runTransaction(async (tx) => {
+    const tel = (await tx.get(db.doc(`dispositivi/${req.auth.uid}`))).data();
+    const p = tel && (await tx.get(db.doc(`persone/${tel.segreto}`))).data();
+    if (!p) return { no: 'non-socio' };
+    const io = { id: p.id, nome: p.nome };
+    const [imp, circolo, attuale, turno, adminTel, adminSocio] = await tx.getAll(db.doc('impostazioni/incassi'),
+      db.doc('impostazioni/circolo'), ref, db.doc(`turni/${giorno}`), db.doc(`admin/${req.auth.uid}`), db.doc(`admin/${io.id}`));
+    if (!imp.data()?.attivi) return { no: 'spenti' };
+    // l'emulatore non fa orderBy desc sull'id: basta sapere se esiste un incasso più recente di questo giorno
+    const ultimo = (await tx.get(db.collection('incassi').where(FieldPath.documentId(), '>', giorno).limit(1))).docs[0]?.id ?? giorno;
+    const prima = attuale.data() ?? null;
+    const negato = permessoIncasso({ azione, giorno, io: io.id, admin: adminTel.exists || adminSocio.exists, incasso: prima,
+      ultimo, serata: serataAperta(new Date(), circolo.data()?.apre) });
+    if (negato) return { no: negato };
+    const quando = FieldValue.serverTimestamp();
+    const storia = ref.collection('storia').doc();
+    if (!prima) {
+      const t = turno.data();
+      const turnista = t ? { id: t.id, nome: t.nome } : io;
+      if (!t) tx.create(db.doc(`turni/${giorno}`), io); // la funzione attivita lo scrive nello storico dei turni
+      tx.create(ref, { ...valori, turnista, inseritoDa: io, inserito: quando });
+      tx.create(storia, { chi: io, quando, cosa: 'inserito', prima: null, dopo: valori });
+      return turnista.id === io.id ? {} : { avvisa: { a: turnista.id, titolo: 'Incasso inserito',
+        testo: `${io.nome} ha inserito l'incasso del tuo turno di ${giornoLeggibile(giorno)}: ${euro(valori.incasso)}.` } };
+    }
+    const vecchi = { incasso: prima.incasso, banconote: prima.banconote, monete: prima.monete, cinquanta: prima.cinquanta };
+    if (Object.keys(valori).every((k) => valori[k] === vecchi[k])) return { no: 'uguale' };
+    tx.update(ref, { ...valori, modificato: true });
+    tx.create(storia, { chi: io, quando, cosa: azione, prima: vecchi, dopo: { ...vecchi, ...valori }, motivo });
+    return {};
+  });
+  if (esito.no) no(esito.no);
+  if (esito.avvisa) {
+    vapid();
+    await invia(db, esito.avvisa).catch((e) => console.error('Avviso al turnista non inviato', e));
+  }
+  return { ok: true };
+});
 
 export const promemoria = onSchedule({ ...MINIMO, schedule: 'every day 09:00', timeZone: 'Europe/Rome', retryCount: 0 }, async () => {
   const db = getFirestore();
