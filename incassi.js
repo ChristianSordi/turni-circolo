@@ -62,7 +62,8 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     const t = turnista(g);
     const campi = CAMPI[azione];
     const modifica = azione !== 'inserisci';
-    $('fi-titolo').textContent = { inserisci: `Incasso di ${giornoLeggibile(g)}`, incasso: 'Correggi l\'incasso', fondo: 'Aggiorna il fondo cassa' }[azione];
+    const titolo = { inserisci: `Incasso di ${giornoLeggibile(g)}`, incasso: 'Correggi l\'incasso', fondo: 'Aggiorna il fondo cassa' }[azione];
+    $('fi-titolo').textContent = titolo;
     $('fi-sotto').textContent = modifica ? `${giornoLeggibile(g)} · turno di ${t.nome}`
       : t ? `Turno di ${t.nome}` : 'Nessuno si era segnato: il turno di questa serata diventa tuo.';
     for (const c of CAMPI.inserisci) $(`fi-${c}`).value = modifica && campi.includes(c) ? perCampo(prima[c]) : '';
@@ -87,6 +88,7 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     let riepilogo = false;
     const passo = (r) => {
       riepilogo = r;
+      $('fi-titolo').textContent = r ? 'Tutto giusto?' : titolo;
       $('fi-campi').hidden = r;
       $('fi-riepilogo').hidden = !r;
       $('fi-ok').textContent = r ? (modifica ? 'Conferma la modifica' : 'Conferma l\'incasso') : 'Continua';
@@ -97,7 +99,7 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     d.showModal();
     return new Promise((fine) => {
       const chiudi = (v) => { d.close(); fine(v); };
-      d.oncancel = (e) => { e.preventDefault(); chiudi(null); }; // tasto indietro / Esc
+      d.oncancel = (e) => { e.preventDefault(); if (!$('fi-ok').disabled) chiudi(null); }; // tasto indietro / Esc
       $('fi-annulla').onclick = () => (riepilogo ? passo(false) : chiudi(null));
       $('f-incasso').onsubmit = async (e) => {
         e.preventDefault();
@@ -147,7 +149,9 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
   }
 
   // Dettaglio di una serata: numeri, storia completa, e solo i pulsanti che chi guarda può usare.
+  let richiesta = 0; // la storia di una serata già chiusa non deve finire in quella aperta dopo
   async function mostraSerata(g) {
+    const mia = ++richiesta;
     const i = incassi[g];
     const d = $('dialogo-serata');
     $('ds-titolo').textContent = giornoLeggibile(g);
@@ -169,6 +173,7 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     d.showModal();
     try {
       const righe = (await getDocs(query(collection(db, 'incassi', g, 'storia'), orderBy('quando')))).docs.map((s) => s.data());
+      if (mia !== richiesta) return;
       $('ds-storia').replaceChildren(...righe.map((r) => {
         const li = el('li', r.cosa === 'inserito' ? '' : 'modifica');
         li.append(el('span', '', fraseIncasso(r))); // testo, mai HTML: nomi e motivi li scrivono gli utenti
@@ -178,6 +183,7 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
         return li;
       }));
     } catch {
+      if (mia !== richiesta) return;
       $('ds-storia').replaceChildren(el('li', 'errore', 'Storia non caricata: controlla la connessione.'));
     }
   }
@@ -190,8 +196,11 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     const mostra = acceso && turni()[s]?.id === io.id && !incassi[s];
     $('incasso-arrivo').hidden = !mostra;
     if (!mostra) return;
-    $('incasso-arrivo-testo').replaceChildren(el('strong', '', `Incasso di ${giornoLeggibile(s)}`),
-      ` · da inserire fino a ${fineSerata(s, orari().apre)}`);
+    const testo = `Incasso di ${giornoLeggibile(s)} · da inserire fino a ${fineSerata(s, orari().apre)}`;
+    if ($('incasso-arrivo-testo').textContent !== testo) { // role=alert: riscrivere ogni minuto lo farebbe rileggere
+      $('incasso-arrivo-testo').replaceChildren(el('strong', '', `Incasso di ${giornoLeggibile(s)}`),
+        ` · da inserire fino a ${fineSerata(s, orari().apre)}`);
+    }
     $('incasso-arrivo-tasto').onclick = () => inserisci(s);
   }
 
@@ -202,7 +211,7 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     const b = el('button', 'secondario', 'Aggiorna il fondo cassa');
     b.onclick = () => correggi('fondo', u);
     $('cassetto').replaceChildren(el('h3', '', `Nel cassetto adesso: ${euro(fondo(i))}`),
-      el('p', 'nota', `Fondo della serata di ${giornoLeggibile(u)} · banconote ${euro(i.banconote)} · monete ${euro(i.monete + i.cinquanta)}`), b);
+      el('p', 'nota', `Fondo della serata di ${giornoLeggibile(u)} (turno di ${i.turnista.nome}) · banconote ${euro(i.banconote)} · monete ${euro(i.monete + i.cinquanta)}`), b);
   }
 
   function disegnaRegistro() {

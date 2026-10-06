@@ -1054,7 +1054,7 @@ function ascoltaIncassi() {
     cassaInArrivo ??= import('./incassi.js?v=1') // ?v=: vedi admin.js
       .then(({ avviaIncassi }) => (cassa = avviaIncassi({ db, funzioni, io, admin, turni: () => turni, orari: () => orari,
         impostazioni: () => impIncassi, $, el, chiedi, avvisoBreve, mostraVista })))
-      .catch(() => chiedi('Registro degli incassi non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
+      .catch(() => { chiedi('Registro degli incassi non caricato. Ricarica la pagina.', { titolo: 'Errore' }); return null; });
     cassaInArrivo.then((c) => c?.accendi(!!impIncassi.attivi));
   }, () => {});
 }
