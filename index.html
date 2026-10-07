@@ -471,6 +471,10 @@
   </section>
 
   <section id="vista-incassi" hidden>
+    <div id="incasso-serata" class="avviso incasso" hidden>
+      <p id="incasso-serata-testo"></p>
+      <button id="incasso-serata-tasto" class="grande">Inserisci l'incasso</button>
+    </div>
     <div id="cassetto" class="chiavi-box"></div>
     <div class="mese">
       <button id="incassi-prima" aria-label="Mese precedente">‹</button>
@@ -1073,7 +1077,7 @@ function ascoltaIncassi() {
   onSnapshot(doc(db, 'impostazioni', 'incassi'), (snap) => {
     impIncassi = snap.data() ?? {};
     if (!impIncassi.attivi && !cassaInArrivo) return;
-    cassaInArrivo ??= import('./incassi.js?v=1') // ?v=: vedi admin.js
+    cassaInArrivo ??= import('./incassi.js?v=2') // ?v=: vedi admin.js
       .then(({ avviaIncassi }) => (cassa = avviaIncassi({ db, funzioni, io, admin, turni: () => turni, orari: () => orari,
         impostazioni: () => impIncassi, $, el, chiedi, avvisoBreve, mostraVista })))
       .catch(() => { chiedi('Registro degli incassi non caricato. Ricarica la pagina.', { titolo: 'Errore' }); return null; });

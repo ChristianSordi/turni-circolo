@@ -21,7 +21,10 @@ const MOTIVI = {
 const CAMPI = { inserisci: ['incasso', 'banconote', 'monete', 'cinquanta'], incasso: ['incasso'], fondo: ['banconote', 'monete', 'cinquanta'] };
 const NOMI = { incasso: 'L\'incasso', banconote: 'Le banconote', monete: 'Le monete da 1 e 2 €', cinquanta: 'Le monete da 50 centesimi' };
 const perCampo = (c) => (c / 100).toFixed(2).replace('.', ',');
-const giornoBreve = (g) => new Date(g.slice(0, 4), g.slice(5, 7) - 1, g.slice(8)).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
+const maiuscola = (s) => s[0].toUpperCase() + s.slice(1);
+// "Martedì 6" nelle righe del registro; "Martedì 6 ottobre" a inizio riga.
+const giornoBreve = (g) => maiuscola(new Date(g.slice(0, 4), g.slice(5, 7) - 1, g.slice(8)).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric' }));
+const Giorno = (g) => maiuscola(giornoLeggibile(g));
 const nomeMese = (p) => new Date(p.slice(0, 4), p.slice(5, 7) - 1).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
 
 export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazioni, $, el, chiedi, avvisoBreve, mostraVista }) {
@@ -64,7 +67,7 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     const modifica = azione !== 'inserisci';
     const titolo = { inserisci: `Incasso di ${giornoLeggibile(g)}`, incasso: 'Correggi l\'incasso', fondo: 'Aggiorna il fondo cassa' }[azione];
     $('fi-titolo').textContent = titolo;
-    $('fi-sotto').textContent = modifica ? `${giornoLeggibile(g)} · turno di ${t.nome}`
+    $('fi-sotto').textContent = modifica ? `${Giorno(g)} · turno di ${t.nome}`
       : t ? `Turno di ${t.nome}` : 'Nessuno si era segnato: il turno di questa serata diventa tuo.';
     for (const c of CAMPI.inserisci) $(`fi-${c}`).value = modifica && campi.includes(c) ? perCampo(prima[c]) : '';
     $('fi-incasso-box').hidden = azione === 'fondo';
@@ -206,6 +209,18 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     $('incasso-arrivo-tasto').onclick = () => inserisci(s);
   }
 
+  // In cima alla scheda Incassi, per tutti: la serata aperta col turno e senza incasso (chiunque chiuda può inserirlo).
+  function disegnaSerata() {
+    const s = serata();
+    const t = turni()[s];
+    const mostra = acceso && t && !incassi[s];
+    $('incasso-serata').hidden = !mostra;
+    if (!mostra) return;
+    $('incasso-serata-testo').replaceChildren(el('strong', '', `Incasso di ${giornoLeggibile(s)}`),
+      ` · ${t.id === io.id ? 'il tuo turno' : `turno di ${t.nome}`} · da inserire fino a ${fineSerata(s, orari().apre)}`);
+    $('incasso-serata-tasto').onclick = () => inserisci(s);
+  }
+
   function disegnaCassetto() {
     const u = ultimo();
     if (!u) return $('cassetto').replaceChildren(el('p', 'nota', 'Nessun incasso ancora: qui comparirà il fondo cassa che c\'è nel cassetto.'));
@@ -237,6 +252,7 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
       li.append(b);
       return li;
     }));
+    disegnaSerata();
     disegnaCassetto();
   }
 
@@ -257,7 +273,7 @@ export function avviaIncassi({ db, funzioni, io, admin, turni, orari, impostazio
     for (const g of giorni) {
       if (anno1 && g.slice(0, 7) !== m) { if (m) subtotale(m); m = g.slice(0, 7); }
       const i = incassi[g];
-      riga([giornoLeggibile(g), i.turnista.nome, euro(i.incasso), euro(fondo(i))]);
+      riga([Giorno(g), i.turnista.nome, euro(i.incasso), euro(fondo(i))]);
     }
     if (anno1) subtotale(m);
     riga([anno1 ? `Totale del ${prefisso}` : 'Totale del mese', `${giorni.length} ${giorni.length === 1 ? 'serata' : 'serate'}`,
