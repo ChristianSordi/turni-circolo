@@ -185,7 +185,8 @@
   /* Classifica */
   .periodo { display: inline-grid; grid-auto-flow: column; gap: 4px; padding: 4px; border-radius: 99px;
              background: var(--preso); }
-  .periodo button { padding: 0 10px; white-space: nowrap; }
+  .periodo button { padding: 0 14px; white-space: nowrap; }
+  #periodo-scelta { max-width: 320px; margin-top: 10px; }
   #mia-posizione { margin: 16px 0 8px; font: 700 1.15rem/1.3 var(--titoli); }
   #elenco-classifica { margin: 0; padding: 0; list-style: none; }
   #elenco-classifica li { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 10px;
@@ -247,7 +248,7 @@
   .chiavi-box { margin-top: 18px; padding: 16px; border: 2px solid var(--linea); border-radius: 14px; }
   .chiavi-box p { margin: 0 0 12px; }
   .chiavi-box label { display: block; margin-bottom: 12px; font-weight: 700; }
-  .chiavi-box select, #d-socio { display: block; width: 100%; min-height: 52px; margin-top: 6px; padding: 10px 12px; border: 2px solid var(--linea);
+  .chiavi-box select, #d-socio, #periodo-scelta { display: block; width: 100%; min-height: 52px; margin-top: 6px; padding: 10px 12px; border: 2px solid var(--linea);
                        border-radius: 12px; background: var(--superficie); color: inherit; font: inherit; }
   .chiavi-box.admin { border-style: dashed; }
   #iscrizioni { margin: 0 0 18px; }
@@ -441,10 +442,11 @@
 
   <section id="vista-classifica" hidden>
     <div class="periodo">
-      <button id="periodo-mese" aria-pressed="false"></button>
-      <button id="periodo-anno" aria-pressed="true"></button>
+      <button id="periodo-mese" aria-pressed="false">Mese</button>
+      <button id="periodo-anno" aria-pressed="true">Anno</button>
       <button id="periodo-sempre" aria-pressed="false">Da sempre</button>
     </div>
+    <select id="periodo-scelta" aria-label="Periodo della classifica"></select>
     <p id="mia-posizione"></p>
     <ol id="elenco-classifica"></ol>
     <p class="nota">Contano solo i turni già fatti: quelli in programma entrano il giorno dopo.</p>
@@ -592,7 +594,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=8'; // ?v=: vedi admin.js
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=9'; // ?v=: vedi admin.js
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { normalizzaNome, maiuscole, nomeValido, pinValido } from './profilo.js?v=3'; // ?v=: vedi admin.js
 
@@ -781,13 +783,32 @@ function disegnaProssimo() {
   p.onclick = () => { anno = Number(primo.slice(0, 4)); mese = primo.slice(5, 7) - 1; disegna(); };
 }
 
+// Mesi ('AAAA-MM') e anni ('AAAA') con almeno un turno già fatto, dal più recente.
+function periodiFatti() {
+  const fatti = Object.keys(turni).filter((d) => d < oggi()).sort().reverse();
+  return { mesi: [...new Set(fatti.map((d) => d.slice(0, 7)))], anni: [...new Set(fatti.map((d) => d.slice(0, 4)))] };
+}
+
+const nomeMese = (m) => new Date(m.slice(0, 4), m.slice(5) - 1).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+
 function disegnaClassifica() {
-  const righe = classifica(turni, oggi(), periodo);
+  const { mesi, anni } = periodiFatti();
+  const scelte = periodo === null ? [] : periodo.length === 7 ? mesi : anni;
+  // Il periodo scelto non ha turni (es. il 1° gennaio l'anno nuovo): si mostra il più recente che ne ha.
+  const visto = scelte.length && !scelte.includes(periodo) ? scelte[0] : periodo;
+  $('periodo-scelta').hidden = !scelte.length;
+  $('periodo-scelta').replaceChildren(...scelte.map((p) => {
+    const o = el('option', '', p.length === 7 ? nomeMese(p).replace(/^./, (c) => c.toUpperCase()) : p);
+    o.value = p;
+    return o;
+  }));
+  $('periodo-scelta').value = visto;
+  const righe = classifica(turni, oggi(), visto, soci);
   $('periodo-mese').setAttribute('aria-pressed', String(periodo?.length === 7));
   $('periodo-anno').setAttribute('aria-pressed', String(periodo?.length === 4));
   $('periodo-sempre').setAttribute('aria-pressed', String(periodo === null));
   $('elenco-classifica').replaceChildren(...righe.map((r) => {
-    const li = el('li', ['', 'oro', 'argento', 'bronzo'][r.posto] ?? '');
+    const li = el('li', r.turni ? ['', 'oro', 'argento', 'bronzo'][r.posto] ?? '' : '');
     const mio = r.id === io.id;
     if (mio) li.classList.add('io');
     const quanti = el('span', 'quanti', String(r.turni));
@@ -796,10 +817,9 @@ function disegnaClassifica() {
     return li;
   }));
   const mia = righe.find((r) => r.id === io.id);
-  const quando = periodo?.length === 7 ? `in ${new Date(periodo.slice(0, 4), periodo.slice(5) - 1).toLocaleDateString('it-IT', { month: 'long' })}`
-    : periodo ? `nel ${periodo}` : 'finora';
-  $('mia-posizione').textContent = !righe.length ? `Nessun turno fatto ${quando}.`
-    : mia ? `Sei al ${mia.posto}° posto su ${righe.length} con ${turniN(mia.turni)}.`
+  const quando = visto?.length === 7 ? `in ${nomeMese(visto)}` : visto ? `nel ${visto}` : 'finora';
+  $('mia-posizione').textContent = !righe.some((r) => r.turni) ? `Nessun turno fatto ${quando}.`
+    : mia?.turni ? `Sei al ${mia.posto}° posto su ${righe.length} con ${turniN(mia.turni)}.`
       : `Non hai ancora fatto turni ${quando}: segnati dal calendario per entrare in classifica.`;
 }
 
@@ -1037,11 +1057,12 @@ function mostraAgenda() {
   $('torna-oggi').onclick = () => { anno = new Date().getFullYear(); mese = new Date().getMonth(); disegna(); };
   $('scheda-calendario').onclick = () => mostraVista('calendario');
   $('scheda-classifica').onclick = () => mostraVista('classifica');
-  const nomeMese = new Date().toLocaleDateString('it-IT', { month: 'long' });
-  $('periodo-mese').textContent = nomeMese[0].toUpperCase() + nomeMese.slice(1);
-  $('periodo-mese').onclick = () => { periodo = oggi().slice(0, 7); disegnaClassifica(); };
-  $('periodo-anno').textContent = String(new Date().getFullYear());
-  $('periodo-anno').onclick = () => { periodo = oggi().slice(0, 4); disegnaClassifica(); };
+  // Mese: il più recente dell'anno che si sta guardando. Anno: quello del mese che si sta guardando.
+  $('periodo-mese').onclick = () => {
+    periodo = periodiFatti().mesi.find((m) => m.startsWith(periodo ?? '')) ?? oggi().slice(0, 7); disegnaClassifica();
+  };
+  $('periodo-anno').onclick = () => { periodo = periodo?.slice(0, 4) ?? oggi().slice(0, 4); disegnaClassifica(); };
+  $('periodo-scelta').onchange = (e) => { periodo = e.target.value; disegnaClassifica(); };
   $('periodo-sempre').onclick = () => { periodo = null; disegnaClassifica(); };
   disegna();
   // ponytail: ascolta tutti i turni di sempre (~365 l'anno); filtrare per mese se diventano migliaia.

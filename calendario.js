@@ -35,13 +35,16 @@ export const fascia = ({ apre, chiude } = {}) =>
 // Classifica turni fatti per socio (per id, col nome più recente): contano solo i giorni prima di `oggi`.
 // anno 'AAAA', 'AAAA-MM' (un mese) o null = da sempre.
 // Posti tutti diversi (1, 2, 3…): a pari turni è davanti chi ci è arrivato prima (ultimo turno più vecchio).
-export function classifica(turni, oggi, anno = null) {
+// In fondo, in ordine alfabetico, i `soci` (id → nome) con 0 turni nel periodo.
+export function classifica(turni, oggi, anno = null, soci = {}) {
   const conta = new Map();
   for (const [data, t] of Object.entries(turni).sort()) {
     if (data >= oggi || (anno && !data.startsWith(anno))) continue;
     conta.set(t.id, { id: t.id, nome: t.nome, turni: (conta.get(t.id)?.turni ?? 0) + 1, ultimo: data });
   }
-  const righe = [...conta.values()].sort((a, b) => b.turni - a.turni || a.ultimo.localeCompare(b.ultimo));
+  for (const [id, nome] of Object.entries(soci)) if (!conta.has(id)) conta.set(id, { id, nome, turni: 0, ultimo: '' });
+  const righe = [...conta.values()]
+    .sort((a, b) => b.turni - a.turni || a.ultimo.localeCompare(b.ultimo) || a.nome.localeCompare(b.nome, 'it'));
   righe.forEach((r, i) => { r.posto = i + 1; });
   return righe;
 }

@@ -48,6 +48,8 @@ test('classifica: solo turni fatti, per socio, a pari turni prima chi ci è arri
   assert.deepEqual(classifica(turni, oggi, '2026-02').map((r) => [r.posto, r.id]), [[1, 'a'], [2, 'c']]);
   assert.equal(classifica(turni, oggi)[0].nome, 'Anna Bianchi Rossi');
   assert.deepEqual(classifica({}, oggi, '2026'), []);
+  assert.deepEqual(classifica(turni, oggi, '2026-02', { a: 'Anna', e: 'Zeno', f: 'Elio', b: 'Bruno Neri' }).map((r) => [r.posto, r.id, r.turni]),
+    [[1, 'a', 1], [2, 'c', 1], [3, 'b', 0], [4, 'f', 0], [5, 'e', 0]]);
 });
 
 test('giorno di chiusura e orari', () => {

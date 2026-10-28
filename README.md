@@ -4,7 +4,7 @@ Agenda condivisa dei turni del circolo: https://christiansordi.github.io/turni-c
 
 La prima volta si apre il link del circolo (quello del gruppo WhatsApp), si scrivono nome e cognome e
 si sceglie un PIN di 4 cifre. Poi basta toccare un giorno libero per segnarsi. Nessun account, niente
-da installare. La scheda **Classifica** conta i turni già fatti, del mese, dell'anno o da sempre. Sotto il calendario
+da installare. La scheda **Classifica** conta i turni già fatti, di un mese, di un anno o da sempre (si sceglie tra quelli con almeno un turno); in fondo i soci con 0 turni. Sotto il calendario
 c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascuno nel mese che stai guardando.
 
 ## Per i soci
