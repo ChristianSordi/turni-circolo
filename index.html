@@ -1175,6 +1175,11 @@ function aspetto(scelta) {
   if (scelta === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = scelta;
   try { localStorage.setItem('aspetto', scelta); } catch {}
+  // Barre del telefono (in alto e, su Android, in basso) dello stesso colore: scelto a mano vale per entrambi i media.
+  const sfondo = { light: '#ffffff', dark: '#1c1a1a' };
+  for (const m of document.querySelectorAll('meta[name="theme-color"]')) {
+    m.content = sfondo[scelta] ?? sfondo[m.media.includes('dark') ? 'dark' : 'light'];
+  }
   for (const b of document.querySelectorAll('[data-aspetto]')) b.setAttribute('aria-pressed', String(b.dataset.aspetto === scelta));
 }
 for (const b of document.querySelectorAll('[data-aspetto]')) b.onclick = () => aspetto(b.dataset.aspetto);
