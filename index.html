@@ -594,7 +594,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=9'; // ?v=: vedi admin.js
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti, meseDaSegnare } from './calendario.js?v=10'; // ?v=: vedi admin.js
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { normalizzaNome, maiuscole, nomeValido, pinValido } from './profilo.js?v=3'; // ?v=: vedi admin.js
 
@@ -1041,8 +1041,20 @@ const contaAccesso = () =>
 let nascostaDa = 0;
 function contaAlRitorno() {
   if (document.hidden) { nascostaDa = Date.now(); return; }
-  if (nascostaDa && Date.now() - nascostaDa >= 30 * 60 * 1000) contaAccesso();
+  if (nascostaDa && Date.now() - nascostaDa >= 30 * 60 * 1000) { contaAccesso(); ricordaMese(); }
   nascostaDa = 0;
+}
+
+// A ogni apertura (come gli accessi): se manca un turno nel mese in corso o, nell'ultima settimana, nel prossimo,
+// lo ricorda; con OK il calendario va su quel mese.
+async function ricordaMese() {
+  const m = meseDaSegnare(oggi(), turni, io.id, orari.chiusura);
+  if (!m || $('dialogo').open) return;
+  await chiedi(`Ricordati di segnare il tuo turno per ${nomeMese(m)}: tocca un giorno libero nel calendario.`,
+    { titolo: `Turni di ${nomeMese(m)}`, ok: 'OK' });
+  anno = Number(m.slice(0, 4));
+  mese = m.slice(5) - 1;
+  disegna();
 }
 
 function mostraAgenda() {
@@ -1066,10 +1078,12 @@ function mostraAgenda() {
   $('periodo-sempre').onclick = () => { periodo = null; disegnaClassifica(); };
   disegna();
   // ponytail: ascolta tutti i turni di sempre (~365 l'anno); filtrare per mese se diventano migliaia.
+  let primaVolta = true;
   onSnapshot(collection(db, 'turni'), (snap) => {
     turni = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
     $('stato').hidden = true;
     disegna();
+    if (primaVolta) { primaVolta = false; ricordaMese(); }
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; $('stato').hidden = false; });
   onSnapshot(doc(db, 'elenco', 'soci'), (snap) => { soci = snap.data()?.soci ?? {}; disegna(); }, () => {}); // senza: niente elenco
   import('./chiavi.js?v=4') // ?v=: vedi admin.js

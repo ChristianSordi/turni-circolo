@@ -6,6 +6,8 @@ La prima volta si apre il link del circolo (quello del gruppo WhatsApp), si scri
 si sceglie un PIN di 4 cifre. Poi basta toccare un giorno libero per segnarsi. Nessun account, niente
 da installare. La scheda **Classifica** conta i turni già fatti, di un mese, di un anno o da sempre (si sceglie tra quelli con almeno un turno); in fondo i soci con 0 turni. Sotto il calendario
 c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascuno nel mese che stai guardando.
+Quando apri l'app, se non hai un turno nel mese in corso (o, nell'ultima settimana del mese, nel prossimo) e ci sono
+ancora giorni liberi, un riquadro te lo ricorda; con OK il calendario va su quel mese.
 
 ## Per i soci
 

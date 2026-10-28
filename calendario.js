@@ -72,6 +72,18 @@ export function avvisoMese(oggi) {
   return null;
 }
 
+// Mese ('AAAA-MM') in cui ricordare al socio `id` di segnarsi, o null. Prima quello in corso, se non ci ha un turno;
+// nell'ultima settimana, poi, il prossimo. Solo se restano giorni liberi (da oggi, aperti, senza turno).
+export function meseDaSegnare(oggi, turni, id, chiusura) {
+  const g = giorno(oggi);
+  const prossimo = iso(new Date(g.getFullYear(), g.getMonth() + 1, 1)).slice(0, 7);
+  const ultimaSettimana = iso(new Date(g.getFullYear(), g.getMonth(), g.getDate() + 7)) >= prossimo;
+  const libero = (m) => griglia(Number(m.slice(0, 4)), m.slice(5) - 1)
+    .some((d) => d && d >= oggi && !turni[d] && !chiuso(d, chiusura));
+  const daSegnare = (m) => libero(m) && !Object.entries(turni).some(([d, t]) => t.id === id && d.startsWith(m));
+  return [oggi.slice(0, 7), ...(ultimaSettimana ? [prossimo] : [])].find(daSegnare) ?? null;
+}
+
 export const fraseMese = (primo, manca) => ({
   titolo: `${manca} a ${primo.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`,
   testo: 'Ricordati di segnare il tuo turno: apri Turni e tocca un giorno libero.',

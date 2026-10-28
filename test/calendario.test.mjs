@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, avvisoMese, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi, serataAperta, fineSerata, centesimi, euro, fondo, datiIncasso, permessoIncasso, righeIncassi, totale, fraseIncasso } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, avvisoMese, meseDaSegnare, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi, serataAperta, fineSerata, centesimi, euro, fondo, datiIncasso, permessoIncasso, righeIncassi, totale, fraseIncasso } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -294,4 +294,20 @@ test('avvisoMese: una settimana e un giorno prima del mese nuovo, a tutti', () =
   assert.equal(avvisoMese(new Date(2027, 1, 22, 9)).titolo, 'Manca una settimana a marzo 2027'); // febbraio di 28 giorni
   assert.equal(avvisoMese(new Date(2026, 9, 28, 9)), null);
   assert.equal(avvisoMese(new Date(2026, 10, 1, 9)), null);
+});
+
+test('meseDaSegnare: prima il mese in corso, nell\'ultima settimana il prossimo, solo con giorni liberi', () => {
+  const io = { id: 'io', nome: 'Io' }, altro = { id: 'x', nome: 'Altro' };
+  assert.equal(meseDaSegnare('2026-10-10', {}, 'io'), '2026-10'); // nessun turno a ottobre
+  assert.equal(meseDaSegnare('2026-10-10', { '2026-10-03': io }, 'io'), null); // fatto; novembre è lontano
+  assert.equal(meseDaSegnare('2026-10-24', { '2026-10-30': io }, 'io'), null); // 8 giorni a novembre: non ancora
+  assert.equal(meseDaSegnare('2026-10-25', { '2026-10-30': io }, 'io'), '2026-11'); // ottobre segnato → novembre
+  assert.equal(meseDaSegnare('2026-10-28', { '2026-10-30': io, '2026-11-12': io }, 'io'), null); // segnato anche novembre
+  assert.equal(meseDaSegnare('2026-10-28', {}, 'io'), '2026-10'); // ottobre non segnato: resta ottobre
+  // Ottobre senza giorni liberi da oggi (29, 30, 31 presi): si passa a novembre.
+  const pieno = { '2026-10-29': altro, '2026-10-30': altro, '2026-10-31': altro };
+  assert.equal(meseDaSegnare('2026-10-29', pieno, 'io'), '2026-11');
+  // Il 31 è sabato: con chiusura il sabato (6) e 29, 30 presi, ottobre non ha più giorni liberi.
+  assert.equal(meseDaSegnare('2026-10-29', { '2026-10-29': altro, '2026-10-30': altro }, 'io', 6), '2026-11');
+  assert.equal(meseDaSegnare('2026-12-28', { '2026-12-01': io }, 'io'), '2027-01'); // a cavallo d'anno
 });
