@@ -34,7 +34,8 @@ c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascu
   chi l'ha inserito). Non si cancella: chi l'ha inserito e il turnista possono correggerlo fino ad allora, con il motivo.
   Chiunque apre il pomeriggio e cambia il fondo nel cassetto lo aggiorna da **Incassi** → "Aggiorna il fondo cassa".
   Ogni modifica la vedono tutti, con chi, quando e perché.
-- **Promemoria sul telefono** (una settimana prima e il giorno prima del turno): in fondo al calendario
+- **Promemoria sul telefono** (una settimana prima e il giorno prima del turno; a tutti, una settimana e un giorno
+  prima del mese nuovo, per ricordare di segnarsi): in fondo al calendario
   tocca "Attiva promemoria" e accetta le notifiche. Su **Android** basta Chrome. Su **iPhone** (iOS 16.4
   o successivo) prima tocca Condividi → "Aggiungi alla schermata Home", apri Turni dall'icona e rientra
   con nome, cognome e PIN: da Safari normale Apple non manda notifiche. Chi aveva già l'icona sulla

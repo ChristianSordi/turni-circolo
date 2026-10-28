@@ -7,7 +7,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldPath, FieldValue } from 'firebase-admin/firestore';
 import webpush from 'web-push';
-import { iso, avvisi, movimenti, movimentiChiavi, giornoLeggibile, serataAperta, datiIncasso, permessoIncasso, euro } from './calendario.js'; // copiati dalla radice prima del deploy (firebase.json)
+import { iso, avvisi, avvisoMese, movimenti, movimentiChiavi, giornoLeggibile, serataAperta, datiIncasso, permessoIncasso, euro } from './calendario.js'; // copiati dalla radice prima del deploy (firebase.json)
 import { maiuscole, nomeValido, pinValido, chiave, idTentativi, attesa, ERRORI_MAX } from './profilo.js';
 
 initializeApp();
@@ -16,12 +16,12 @@ initializeApp();
 const MINIMO = { region: 'europe-west1', memory: '256MiB', timeoutSeconds: 60, maxInstances: 1, minInstances: 0 };
 const vapid = () => webpush.setVapidDetails('https://christiansordi.github.io/turni-circolo/', process.env.VAPID_PUBLIC, process.env.VAPID_PRIVATE);
 
-// Notifica ai telefoni con i promemoria attivi: di un socio (a) o di tutti tranne uno (tranne).
+// Notifica ai telefoni con i promemoria attivi: di un socio (a), di tutti tranne uno (tranne) o di tutti (tutti: true).
 // Telefono non più suo (reset PIN, socio eliminato) o promemoria disattivati: l'iscrizione si cancella.
-async function invia(db, { a, tranne, titolo, testo }) {
-  // Senza un socio (a) o un escluso (tranne) validi non si avvisa nessuno: mai a tutti per un id mancante.
+async function invia(db, { a, tranne, tutti, titolo, testo }) {
+  // Senza un socio (a), un escluso (tranne) o tutti: true non si avvisa nessuno: mai a tutti per un id mancante.
   const valido = (x) => typeof x === 'string' && x !== '';
-  if (!valido(a) && !valido(tranne)) return 0;
+  if (!valido(a) && !valido(tranne) && tutti !== true) return 0;
   const iscritti = valido(a) ? db.collection('promemoria').where('id', '==', a) : db.collection('promemoria');
   let inviati = 0;
   for (const p of (await iscritti.get()).docs) {
@@ -166,6 +166,8 @@ export const promemoria = onSchedule({ ...MINIMO, schedule: 'every day 09:00', t
   const orari = (await db.doc('impostazioni/circolo').get()).data();
   let inviati = 0;
   for (const x of avvisi(oggi, turni, orari)) inviati += await invia(db, { a: x.id, titolo: x.titolo, testo: x.testo });
+  const mese = avvisoMese(oggi);
+  if (mese) inviati += await invia(db, { tutti: true, ...mese });
   console.log(`Promemoria inviati: ${inviati}`);
 });
 

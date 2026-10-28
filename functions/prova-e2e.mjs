@@ -54,12 +54,14 @@ await attivita.run(doppio);
 assert.equal((await storico()).length, 7);
 
 // Promemoria come prima: turno domani → avviso solo ad Anna; telefono non più suo → iscrizione cancellata.
+// Se oggi manca una settimana o un giorno al mese nuovo arriva anche l'avviso a tutti: qui non conta.
+const delMese = (i) => i.titolo.startsWith('Manca ');
 inviate.length = 0;
 const domani = new Date(); domani.setDate(domani.getDate() + 1);
 await db.doc(`turni/${iso(domani)}`).set(ANNA);
 await db.doc('promemoria/vecchio').set({ id: 'anna', endpoint: 'https://push.prova/vecchio', p256dh: 'x', auth: 'y' });
 await promemoria.run({});
-assert.deepEqual(inviate.map((i) => i.endpoint), ['https://push.prova/anna']);
+assert.deepEqual(inviate.filter((i) => !delMese(i)).map((i) => i.endpoint), ['https://push.prova/anna']);
 assert.equal(inviate[0].titolo, 'Domani hai il turno al circolo');
 assert.equal((await db.doc('promemoria/vecchio').get()).exists, false);
 
@@ -67,7 +69,15 @@ assert.equal((await db.doc('promemoria/vecchio').get()).exists, false);
 inviate.length = 0;
 await db.doc(`turni/${iso(domani)}`).set({ nome: 'Senza id' });
 await promemoria.run({});
-assert.deepEqual(inviate, []);
+assert.deepEqual(inviate.filter((i) => !delMese(i)), []);
+
+// Il 31 ottobre (alle 9): domani è il 1° novembre → l'avviso del mese arriva a tutti i telefoni con i promemoria.
+inviate.length = 0;
+const VeraData = Date;
+globalThis.Date = class extends VeraData { constructor(...a) { super(...(a.length ? a : [2026, 9, 31, 9])); } };
+try { await promemoria.run({}); } finally { globalThis.Date = VeraData; }
+assert.deepEqual(inviate.map((i) => i.endpoint).sort(), ['https://push.prova/anna', 'https://push.prova/bruno', 'https://push.prova/capo']);
+assert.equal(inviate[0].titolo, 'Manca un giorno a novembre 2026');
 
 // Storico iniziale: una riga "segna" (importata) per ogni turno che non ha già un "segna"; rilanciabile.
 const { execFileSync } = await import('node:child_process');

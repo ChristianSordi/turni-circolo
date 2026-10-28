@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi, serataAperta, fineSerata, centesimi, euro, fondo, datiIncasso, permessoIncasso, righeIncassi, totale, fraseIncasso } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, avvisoMese, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi, serataAperta, fineSerata, centesimi, euro, fondo, datiIncasso, permessoIncasso, righeIncassi, totale, fraseIncasso } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -284,4 +284,14 @@ test('fraseIncasso: la storia in parole', () => {
   assert.equal(fraseIncasso({ cosa: 'inserito', chi, prima: null, dopo: n }), 'Bruno Neri l\'ha inserito: incasso € 180,00, fondo cassa € 70,00');
   assert.equal(fraseIncasso({ cosa: 'incasso', chi, prima: n, dopo: { ...n, incasso: 18800 } }), 'Bruno Neri ha corretto l\'incasso: € 180,00 → € 188,00');
   assert.equal(fraseIncasso({ cosa: 'fondo', chi, prima: n, dopo: { ...n, monete: 1500 } }), 'Bruno Neri ha aggiornato il fondo cassa: € 70,00 → € 75,00');
+});
+
+test('avvisoMese: una settimana e un giorno prima del mese nuovo, a tutti', () => {
+  assert.deepEqual(avvisoMese(new Date(2026, 9, 25, 9)), { titolo: 'Manca una settimana a novembre 2026',
+    testo: 'Ricordati di segnare il tuo turno: apri Turni e tocca un giorno libero.' });
+  assert.equal(avvisoMese(new Date(2026, 9, 31, 9)).titolo, 'Manca un giorno a novembre 2026');
+  assert.equal(avvisoMese(new Date(2026, 11, 31, 9)).titolo, 'Manca un giorno a gennaio 2027');
+  assert.equal(avvisoMese(new Date(2027, 1, 22, 9)).titolo, 'Manca una settimana a marzo 2027'); // febbraio di 28 giorni
+  assert.equal(avvisoMese(new Date(2026, 9, 28, 9)), null);
+  assert.equal(avvisoMese(new Date(2026, 10, 1, 9)), null);
 });

@@ -63,6 +63,20 @@ export const avvisi = (oggi, turni, orari = {}) =>
     return t ? [{ id: t.id, titolo: `${quando} hai il turno al circolo`, testo: quandoTurno(data, orari) }] : [];
   });
 
+// Avviso a tutti una settimana e un giorno prima del mese nuovo; null negli altri giorni.
+export function avvisoMese(oggi) {
+  for (const [n, quanto] of [[7, 'una settimana'], [1, 'un giorno']]) {
+    const d = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() + n);
+    if (d.getDate() === 1) return fraseMese(d, `Manca ${quanto}`);
+  }
+  return null;
+}
+
+export const fraseMese = (primo, manca) => ({
+  titolo: `${manca} a ${primo.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`,
+  testo: 'Ricordati di segnare il tuo turno: apri Turni e tocca un giorno libero.',
+});
+
 // Storico e notifiche di una modifica a turni/{giorno}. prima/dopo: { id, nome, cedo? } o null.
 // attore: id del socio che l'ha fatta; null = non si sa (console Firebase).
 export function movimenti(giorno, prima, dopo, attore, orari = {}) {
