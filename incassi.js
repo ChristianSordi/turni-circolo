@@ -4,7 +4,7 @@
 import { collection, onSnapshot, query, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { giornoLeggibile, serataAperta, fineSerata, centesimi, euro, fondo, permessoIncasso, righeIncassi, totale, fraseIncasso }
-  from './calendario.js?v=7'; // ?v=: vedi admin.js
+  from './calendario.js?v=8'; // ?v=: vedi admin.js
 
 // Rifiuti del server (details.motivo) in parole.
 const MOTIVI = {

@@ -185,7 +185,7 @@
   /* Classifica */
   .periodo { display: inline-grid; grid-auto-flow: column; gap: 4px; padding: 4px; border-radius: 99px;
              background: var(--preso); }
-  .periodo button { padding: 0 18px; }
+  .periodo button { padding: 0 10px; white-space: nowrap; }
   #mia-posizione { margin: 16px 0 8px; font: 700 1.15rem/1.3 var(--titoli); }
   #elenco-classifica { margin: 0; padding: 0; list-style: none; }
   #elenco-classifica li { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 10px;
@@ -198,9 +198,12 @@
   #elenco-attivita .ora, #elenco-chiavi .ora { margin-right: 8px; color: var(--grigio); font-weight: 700; }
   #elenco-classifica li.io { border-radius: 12px; border-bottom-color: transparent; background: var(--rosso-tenue); }
   .posto { display: grid; place-items: center; width: 44px; height: 44px; font: 800 1.3rem/1 var(--titoli); color: var(--grigio); }
-  /* La stella del circolo per chi è in testa */
-  .primo .posto { padding-top: 6px; background: var(--rosso); color: #fff; font-size: 1.05rem;
+  /* Stella d'oro, d'argento e di bronzo per i primi tre posti */
+  .oro .posto, .argento .posto, .bronzo .posto { padding-top: 6px; color: #211f1f; font-size: 1.05rem;
                   clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+  .oro .posto { background: #e8b923; }
+  .argento .posto { background: #bfc4c9; }
+  .bronzo .posto { background: #cd7f32; }
   .chi { font-weight: 700; overflow-wrap: anywhere; }
   .quanti { font: 800 1.2rem/1 var(--titoli); white-space: nowrap; }
   .quanti small { font: 400 .8rem 'Atkinson Hyperlegible', sans-serif; color: var(--grigio); }
@@ -438,6 +441,7 @@
 
   <section id="vista-classifica" hidden>
     <div class="periodo">
+      <button id="periodo-mese" aria-pressed="false"></button>
       <button id="periodo-anno" aria-pressed="true"></button>
       <button id="periodo-sempre" aria-pressed="false">Da sempre</button>
     </div>
@@ -588,7 +592,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=7'; // ?v=: vedi admin.js
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti } from './calendario.js?v=8'; // ?v=: vedi admin.js
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { normalizzaNome, maiuscole, nomeValido, pinValido } from './profilo.js?v=3'; // ?v=: vedi admin.js
 
@@ -625,7 +629,7 @@ let cassa = null;       // registro degli incassi: incassi.js, caricato solo se 
 let impIncassi = {};    // impostazioni/incassi: { attivi, avvisoMancante, dal }
 let anno = new Date().getFullYear();
 let mese = new Date().getMonth();
-let periodo = String(anno); // classifica: 'AAAA' o null = da sempre
+let periodo = String(anno); // classifica: 'AAAA-MM' (mese), 'AAAA' (anno) o null = da sempre
 let orari = {};      // impostazioni/circolo: { chiusura, apre, chiude }
 
 function el(tag, classe = '', testo = '') {
@@ -779,10 +783,11 @@ function disegnaProssimo() {
 
 function disegnaClassifica() {
   const righe = classifica(turni, oggi(), periodo);
-  $('periodo-anno').setAttribute('aria-pressed', String(periodo !== null));
+  $('periodo-mese').setAttribute('aria-pressed', String(periodo?.length === 7));
+  $('periodo-anno').setAttribute('aria-pressed', String(periodo?.length === 4));
   $('periodo-sempre').setAttribute('aria-pressed', String(periodo === null));
   $('elenco-classifica').replaceChildren(...righe.map((r) => {
-    const li = el('li', r.posto === 1 ? 'primo' : '');
+    const li = el('li', ['', 'oro', 'argento', 'bronzo'][r.posto] ?? '');
     const mio = r.id === io.id;
     if (mio) li.classList.add('io');
     const quanti = el('span', 'quanti', String(r.turni));
@@ -791,7 +796,8 @@ function disegnaClassifica() {
     return li;
   }));
   const mia = righe.find((r) => r.id === io.id);
-  const quando = periodo ? `nel ${periodo}` : 'finora';
+  const quando = periodo?.length === 7 ? `in ${new Date(periodo.slice(0, 4), periodo.slice(5) - 1).toLocaleDateString('it-IT', { month: 'long' })}`
+    : periodo ? `nel ${periodo}` : 'finora';
   $('mia-posizione').textContent = !righe.length ? `Nessun turno fatto ${quando}.`
     : mia ? `Sei al ${mia.posto}° posto su ${righe.length} con ${turniN(mia.turni)}.`
       : `Non hai ancora fatto turni ${quando}: segnati dal calendario per entrare in classifica.`;
@@ -1031,8 +1037,11 @@ function mostraAgenda() {
   $('torna-oggi').onclick = () => { anno = new Date().getFullYear(); mese = new Date().getMonth(); disegna(); };
   $('scheda-calendario').onclick = () => mostraVista('calendario');
   $('scheda-classifica').onclick = () => mostraVista('classifica');
+  const nomeMese = new Date().toLocaleDateString('it-IT', { month: 'long' });
+  $('periodo-mese').textContent = nomeMese[0].toUpperCase() + nomeMese.slice(1);
+  $('periodo-mese').onclick = () => { periodo = oggi().slice(0, 7); disegnaClassifica(); };
   $('periodo-anno').textContent = String(new Date().getFullYear());
-  $('periodo-anno').onclick = () => { periodo = String(new Date().getFullYear()); disegnaClassifica(); };
+  $('periodo-anno').onclick = () => { periodo = oggi().slice(0, 4); disegnaClassifica(); };
   $('periodo-sempre').onclick = () => { periodo = null; disegnaClassifica(); };
   disegna();
   // ponytail: ascolta tutti i turni di sempre (~365 l'anno); filtrare per mese se diventano migliaia.

@@ -30,7 +30,7 @@ test('giornoLeggibile in italiano', () => {
   assert.equal(giornoLeggibile('2026-10-01'), 'giovedì 1 ottobre');
 });
 
-test('classifica: solo turni fatti, per socio, pari merito, filtro anno, nome più recente', () => {
+test('classifica: solo turni fatti, per socio, a pari turni prima chi ci è arrivato prima, filtro anno e mese, nome più recente', () => {
   const turni = {
     '2025-12-31': { id: 'a', nome: 'Anna Bianchi' },
     '2026-01-02': { id: 'b', nome: 'Bruno Neri' },
@@ -43,8 +43,9 @@ test('classifica: solo turni fatti, per socio, pari merito, filtro anno, nome pi
   };
   const oggi = '2026-03-10';
   assert.deepEqual(classifica(turni, oggi, '2026').map((r) => [r.posto, r.id, r.turni]),
-    [[1, 'c', 2], [2, 'a', 1], [2, 'b', 1], [2, 'd', 1]]);
-  assert.deepEqual(classifica(turni, oggi).map((r) => [r.posto, r.id]), [[1, 'a'], [1, 'c'], [3, 'b'], [3, 'd']]);
+    [[1, 'c', 2], [2, 'b', 1], [3, 'a', 1], [4, 'd', 1]]);
+  assert.deepEqual(classifica(turni, oggi).map((r) => [r.posto, r.id]), [[1, 'a'], [2, 'c'], [3, 'b'], [4, 'd']]);
+  assert.deepEqual(classifica(turni, oggi, '2026-02').map((r) => [r.posto, r.id]), [[1, 'a'], [2, 'c']]);
   assert.equal(classifica(turni, oggi)[0].nome, 'Anna Bianchi Rossi');
   assert.deepEqual(classifica({}, oggi, '2026'), []);
 });
