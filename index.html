@@ -172,6 +172,12 @@
     background: repeating-linear-gradient(var(--superficie) 0 5px, var(--linea) 5px 7px); }
   .giorno.chiuso .nome { width: auto; margin-top: auto; padding: 0 3px; border-radius: 4px; background: var(--superficie);
                          font-weight: 700; }
+  /* Rimasto chiuso, nessuno si era segnato: casella barrata con una X, diversa dalla serranda */
+  .giorno.deserto, .legenda .l-deserto { border: 2px dashed var(--grigio); color: var(--grigio);
+    background: linear-gradient(to top right, transparent calc(50% - 1px), var(--linea) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+                linear-gradient(to bottom right, transparent calc(50% - 1px), var(--linea) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)); }
+  .giorno.deserto .nome { width: auto; margin-top: auto; padding: 0 3px; border-radius: 4px; background: var(--superficie);
+                          font-style: italic; }
 
   .legenda { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; padding: 0; list-style: none; font-size: .9rem; }
   .legenda i { display: inline-block; width: 16px; height: 16px; margin-right: 6px; border-radius: 4px; vertical-align: -2px; }
@@ -427,7 +433,7 @@
       <li><i class="l-libero"></i>Libero: tocca per segnarti</li>
       <li><i class="l-cerca"></i>Cercasi sostituto: tocca per prenderlo</li>
       <li id="legenda-chiuso" hidden><i class="l-chiuso"></i>Chiuso: se vuoi aprire tu, toccalo</li>
-      <li id="legenda-deserto" hidden><i class="l-chiuso"></i>Chiuso per assenza di turnista: nessuno si era segnato</li>
+      <li id="legenda-deserto" hidden><i class="l-deserto"></i>Chiuso per assenza di turnista: nessuno si era segnato</li>
       <li id="legenda-extra" hidden><i class="l-extra"></i>Extra: aperto nel giorno di chiusura</li>
     </ul>
     <section id="mese-soci" hidden>
@@ -837,17 +843,18 @@ function disegna() {
     const b = el('button', 'giorno');
     const deserto = rimastoChiuso(data);
     if (deserto) deserti++;
-    const serranda = !t && (deserto || chiuso(data, orari.chiusura)); // un turno già segnato resta visibile
+    const serranda = !t && !deserto && chiuso(data, orari.chiusura); // un turno già segnato resta visibile
     const cerca = t?.cedo && data >= oggi(); // passato il giorno non si prende più
     const extra = t && chiuso(data, orari.chiusura); // turno in un giorno di chiusura
-    const libero = !t && !serranda && (data >= oggi() || admin); // l'admin segna anche i giorni passati
+    const libero = !t && !serranda && !deserto && (data >= oggi() || admin); // l'admin segna anche i giorni passati
     b.append(el('span', 'num', String(Number(data.slice(8)))),
-      el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : extra ? '\nextra' : '') : serranda ? 'chiuso' : libero ? '+' : ''));
+      el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : extra ? '\nextra' : '') : deserto ? 'nessuno' : serranda ? 'chiuso' : libero ? '+' : ''));
     b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${extra ? ', aperto nel giorno di chiusura' : ''}${cerca ? ', cerca un sostituto' : ''}` : deserto ? 'il circolo è rimasto chiuso per assenza di turnista' : serranda ? 'circolo chiuso' : 'libero'}`);
     if (t) b.classList.add(t.id === io.id ? 'mio' : 'altro');
     if (extra) b.classList.add('extra');
     if (cerca) b.classList.add('cerca');
     if (serranda) b.classList.add('chiuso');
+    if (deserto) b.classList.add('deserto');
     if (libero) b.classList.add('libero');
     if (data < oggi()) b.classList.add('passato');
     if (data === oggi()) b.classList.add('oggi');
