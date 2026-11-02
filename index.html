@@ -427,6 +427,7 @@
       <li><i class="l-libero"></i>Libero: tocca per segnarti</li>
       <li><i class="l-cerca"></i>Cercasi sostituto: tocca per prenderlo</li>
       <li id="legenda-chiuso" hidden><i class="l-chiuso"></i>Chiuso: se vuoi aprire tu, toccalo</li>
+      <li id="legenda-deserto" hidden><i class="l-chiuso"></i>Chiuso per assenza di turnista: nessuno si era segnato</li>
       <li id="legenda-extra" hidden><i class="l-extra"></i>Extra: aperto nel giorno di chiusura</li>
     </ul>
     <section id="mese-soci" hidden>
@@ -829,17 +830,20 @@ function disegna() {
   $('torna-oggi').hidden = anno === adesso.getFullYear() && mese === adesso.getMonth();
   const g = $('griglia');
   g.replaceChildren(...['L', 'M', 'M', 'G', 'V', 'S', 'D'].map((l) => el('div', 'intestazione', l)));
+  let deserti = 0;
   for (const data of griglia(anno, mese)) {
     if (!data) { g.append(el('div')); continue; }
     const t = turni[data];
     const b = el('button', 'giorno');
-    const serranda = !t && chiuso(data, orari.chiusura); // un turno già segnato resta visibile
+    const deserto = rimastoChiuso(data);
+    if (deserto) deserti++;
+    const serranda = !t && (deserto || chiuso(data, orari.chiusura)); // un turno già segnato resta visibile
     const cerca = t?.cedo && data >= oggi(); // passato il giorno non si prende più
     const extra = t && chiuso(data, orari.chiusura); // turno in un giorno di chiusura
     const libero = !t && !serranda && (data >= oggi() || admin); // l'admin segna anche i giorni passati
     b.append(el('span', 'num', String(Number(data.slice(8)))),
       el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : extra ? '\nextra' : '') : serranda ? 'chiuso' : libero ? '+' : ''));
-    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${extra ? ', aperto nel giorno di chiusura' : ''}${cerca ? ', cerca un sostituto' : ''}` : serranda ? 'circolo chiuso' : 'libero'}`);
+    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${extra ? ', aperto nel giorno di chiusura' : ''}${cerca ? ', cerca un sostituto' : ''}` : deserto ? 'il circolo è rimasto chiuso per assenza di turnista' : serranda ? 'circolo chiuso' : 'libero'}`);
     if (t) b.classList.add(t.id === io.id ? 'mio' : 'altro');
     if (extra) b.classList.add('extra');
     if (cerca) b.classList.add('cerca');
@@ -852,6 +856,7 @@ function disegna() {
   }
   $('legenda-chiuso').hidden = orari.chiusura == null;
   $('legenda-extra').hidden = orari.chiusura == null;
+  $('legenda-deserto').hidden = !deserti;
   const [fatti, aperti] = coperti(anno, mese, turni, orari.chiusura);
   $('coperti').replaceChildren(`Turni coperti in ${new Date(anno, mese).toLocaleDateString('it-IT', { month: 'long' })}: `,
     el('strong', '', `${fatti}/${aperti}`));
@@ -965,15 +970,27 @@ async function chiediGiorno(data, testo, opzioni) {
   return opzioni.input || opzioni.socio ? undefined : false;
 }
 
+// Giorno passato senza turno (non di chiusura): il circolo è rimasto chiuso; l'admin può ancora segnarlo. Solo dal
+// primo turno mai segnato: prima l'app non c'era.
+function rimastoChiuso(data) {
+  const primo = Object.keys(turni).sort()[0];
+  return !turni[data] && data < oggi() && primo < data && !chiuso(data, orari.chiusura);
+}
+
 async function tocca(data) {
   const t = turni[data];
   const quando = giornoLeggibile(data);
   const passato = data < oggi();
   try {
     if (!t) {
-      if (passato && !admin) return cassa?.etichetta(data) ? cassa.apri(data) : avvisoBreve('Questo giorno è già passato.');
+      const deserto = rimastoChiuso(data);
+      if (passato && !admin) {
+        return cassa?.etichetta(data) ? cassa.apri(data)
+          : avvisoBreve(deserto ? 'Il circolo è rimasto chiuso per assenza di turnista.' : 'Questo giorno è già passato.');
+      }
       if (admin) { // segna chiunque, anche nei giorni passati
-        const id = await chiediGiorno(data, passato ? 'Il giorno è passato. Scegli chi ha fatto il turno.' : 'Scegli chi fa il turno.', {
+        const id = await chiediGiorno(data, deserto ? 'Il circolo è rimasto chiuso per assenza di turnista. Se invece qualcuno ha fatto il turno, sceglilo qui.'
+          : passato ? 'Il giorno è passato. Scegli chi ha fatto il turno.' : 'Scegli chi fa il turno.', {
           titolo: quando, ok: 'Segna il turno', annulla: 'Annulla', socio: io.id });
         if (!id) return;
         const nome = id === io.id ? io.nome : soci[id];
