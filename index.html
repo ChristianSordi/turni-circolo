@@ -289,6 +289,10 @@
   .promemoria.in-cima { flex-wrap: wrap; }
   #p-guida { flex-basis: 100%; margin: 0; padding-left: 1.4em; }
   #p-guida li { margin-top: 6px; }
+  /* Installa (Android): testo sopra, «Installa» e «Non ora» affiancati sotto */
+  #installa { display: block; }
+  #installa .due { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  #installa button { width: 100%; }
   #p-guida svg { width: 1.2em; height: 1.2em; vertical-align: -3px; fill: none; stroke: var(--blu); stroke-width: 2;
                  stroke-linecap: round; stroke-linejoin: round; }
 
@@ -446,7 +450,10 @@
   <section id="vista-calendario">
     <section id="installa" class="promemoria in-cima" hidden>
       <p>Metti Turni sulla schermata Home, come le altre app.</p>
-      <button id="installa-tasto" class="secondario">Installa</button>
+      <div class="due">
+        <button id="installa-tasto" class="secondario">Installa</button>
+        <button id="installa-no" class="secondario">Non ora</button>
+      </div>
     </section>
     <button id="prossimo" class="prossimo"></button>
     <div class="mese">
@@ -969,6 +976,13 @@ addEventListener('appinstalled', () => {
   $('installa').hidden = true;
   avvisoBreve('Fatto: trovi Turni tra le app del telefono');
 });
+// «Non ora»: la striscia torna dopo 30 giorni (ricordato solo su questo telefono).
+const NON_ORA = 'installa-non-ora';
+const nonOra = () => { try { return Date.now() - Number(localStorage.getItem(NON_ORA)) < 30 * 864e5; } catch { return false; } };
+$('installa-no').onclick = () => {
+  try { localStorage.setItem(NON_ORA, String(Date.now())); } catch { /* senza memoria la striscia torna alla prossima apertura */ }
+  $('installa').hidden = true;
+};
 $('installa-tasto').onclick = async () => {
   if (!invitoInstalla) return;
   invitoInstalla.prompt();
@@ -1007,7 +1021,7 @@ async function disegnaPromemoria() {
   const attivi = sub && (await getDoc(doc(db, 'promemoria', auth.currentUser.uid))).exists();
   box.classList.toggle('attivi', Boolean(attivi));
   inCima(!attivi);
-  $('installa').hidden = !(attivi && invitoInstalla);
+  $('installa').hidden = !(attivi && invitoInstalla && !nonOra());
   t.textContent = attivi ? 'Attivi su questo telefono: ti avvisiamo una settimana prima e il giorno prima di ogni tuo turno.'
     : 'Vuoi un avviso sul telefono prima dei tuoi turni?';
   b.textContent = attivi ? 'Disattiva promemoria' : 'Attiva';
