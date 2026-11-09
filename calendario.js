@@ -103,6 +103,9 @@ export const fraseMese = (primo, manca) => ({
   testo: 'Ricordati di segnare il tuo turno: apri Turni e tocca un giorno libero.',
 });
 
+// Come entroIlGiorno di firestore.rules: un turno si cambia fino alle 22:00 UTC del giorno (23 d'inverno, mezzanotte d'estate).
+export const entroIlGiorno = (g, ora = new Date()) => ora.getTime() < Date.UTC(g.slice(0, 4), g.slice(5, 7) - 1, g.slice(8), 22);
+
 // Proposta di cambio ancora valida sul turno t del giorno d: nessuno dei due giorni passato e l'altro turno ancora suo.
 export const cambioAperto = (d, t, turni, oggi) =>
   Boolean(t?.cambio && d >= oggi && t.cambio.giorno >= oggi && turni[t.cambio.giorno]?.id === t.cambio.con);
@@ -114,7 +117,11 @@ export function movimenti(giorno, prima, dopo, attore, orari = {}) {
   const riga = (t, azione, altro, scambio) => ({ socio: t.id, nome: t.nome, azione, giorno, ...(altro && { altro }), ...(scambio && { scambio }) });
   const solo = (r) => ({ righe: [r], notifiche: [] });
   if (!prima) return solo(riga(dopo, attore && attore !== dopo.id ? 'segnato-admin' : 'segna'));
-  if (!dopo) return solo(riga(prima, attore === null ? 'tolto' : attore === prima.id ? 'toglie' : 'tolto-admin'));
+  // Chi ha proposto un cambio lo ritira (annulla, cerca un sostituto, toglie il turno): l'altro riceve un avviso.
+  const p = prima.cambio;
+  const ritirata = p && attore === prima.id ? [{ a: p.con, titolo: 'Proposta di cambio ritirata',
+    testo: `${prima.nome} ha ritirato la proposta di cambio con il tuo turno di ${giornoLeggibile(p.giorno)}.` }] : [];
+  if (!dopo) return { righe: [riga(prima, attore === null ? 'tolto' : attore === prima.id ? 'toglie' : 'tolto-admin')], notifiche: ritirata };
   if (prima.id !== dopo.id && dopo.scambio) {
     return {
       righe: [riga(dopo, 'cambio-prende', prima.nome), riga(prima, 'cambio-da', dopo.nome)],
@@ -127,7 +134,7 @@ export function movimenti(giorno, prima, dopo, attore, orari = {}) {
   if (prima.id === dopo.id && c && (prima.cambio?.giorno !== c.giorno || prima.cambio?.con !== c.con)) {
     return {
       righe: [riga(dopo, 'propone', c.nome, c.giorno)],
-      notifiche: [{ a: c.con, titolo: 'Proposta di cambio turno',
+      notifiche: [...(p?.con !== c.con ? ritirata : []), { a: c.con, titolo: 'Proposta di cambio turno',
         testo: `${dopo.nome} ti chiede di fare cambio: tu fai il suo turno di ${giornoLeggibile(giorno)}, in cambio del tuo di ${giornoLeggibile(c.giorno)}. Apri Turni per rispondere.` }],
     };
   }
@@ -141,18 +148,17 @@ export function movimenti(giorno, prima, dopo, attore, orari = {}) {
     return {
       righe: [riga(dopo, 'cerca')],
       notifiche: [{ tranne: dopo.id, titolo: 'Cercasi sostituto',
-        testo: `${quandoTurno(giorno, orari)}. ${dopo.nome} cerca un sostituto: apri Turni per prendere il turno.` }],
+        testo: `${quandoTurno(giorno, orari)}. ${dopo.nome} cerca un sostituto: apri Turni per prendere il turno.` }, ...ritirata],
     };
   }
   if (prima.cedo && !dopo.cedo) return solo(riga(dopo, 'ritira'));
-  const p = prima.cambio;
   if (p && !c && attore === p.con) {
     return {
       righe: [riga({ id: p.con, nome: p.nome }, 'rifiuta-cambio', prima.nome, p.giorno)],
       notifiche: [{ a: prima.id, titolo: 'Cambio turno rifiutato', testo: `${p.nome} non fa cambio: il turno di ${giornoLeggibile(giorno)} resta tuo.` }],
     };
   }
-  if (p && !c && attore === prima.id) return solo(riga(dopo, 'ritira-cambio', p.nome, p.giorno));
+  if (p && !c && attore === prima.id) return { righe: [riga(dopo, 'ritira-cambio', p.nome, p.giorno)], notifiche: ritirata };
   return { righe: [], notifiche: [] };
 }
 

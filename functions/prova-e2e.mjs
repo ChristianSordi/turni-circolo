@@ -286,4 +286,21 @@ await db.recursiveDelete(db.doc(`incassi/${IERI}`));
 await db.doc(`turni/${IERI}`).delete();
 assert.deepEqual(await avvisiAlle11({ attivi: true, avvisoMancante: true, dal: IERI }), []); // senza turno nessun avviso
 
+// Cambio turno: Anna e Carla chiedono un cambio con il turno di Bruno del 20; Bruno lo toglie. Le due proposte decadono
+// (tolte dai turni) e tutte e due ricevono un avviso; quella con un altro turno resta.
+for (const [g, t] of [['2030-05-10', { ...ANNA, cambio: { giorno: '2030-05-20', con: 'bruno', nome: BRUNO.nome } }],
+  ['2030-05-11', { id: 'carla', nome: 'Carla Verdi', cambio: { giorno: '2030-05-20', con: 'bruno', nome: BRUNO.nome } }],
+  ['2030-05-12', { ...ANNA, cambio: { giorno: '2030-05-21', con: 'bruno', nome: BRUNO.nome } }]]) await db.doc(`turni/${g}`).set(t);
+await db.doc('promemoria/carla').set({ id: 'carla', endpoint: 'https://push.prova/carla', p256dh: 'x', auth: 'y' });
+await db.doc('persone/chiave-carla').set({ id: 'carla', nome: 'Carla Verdi' });
+await db.doc('dispositivi/carla').set({ id: 'carla', segreto: 'chiave-carla' });
+inviate.length = 0;
+await attivita.run({ ...evento(BRUNO, null, 'bruno'), params: { giorno: '2030-05-20' } });
+assert.deepEqual(inviate.map((i) => [i.endpoint, i.titolo]).sort(),
+  [['https://push.prova/anna', 'Proposta di cambio decaduta'], ['https://push.prova/carla', 'Proposta di cambio decaduta']]);
+assert.equal(inviate[0].testo, 'Bruno Bianchi non ha più il turno di lunedì 20 maggio: la tua proposta di cambio non vale più.');
+assert.deepEqual((await db.doc('turni/2030-05-10').get()).data(), ANNA);
+assert.equal((await db.doc('turni/2030-05-11').get()).data().cambio, undefined);
+assert.equal((await db.doc('turni/2030-05-12').get()).data().cambio.giorno, '2030-05-21');
+
 console.log('e2e funzioni: tutto ok');

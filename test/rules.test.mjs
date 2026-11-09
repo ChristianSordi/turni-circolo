@@ -463,3 +463,21 @@ test('cambio turno: senza proposta, o con l\'altro turno passato, non si accetta
   await semina(PASSATO, { ...anna, cambio: { giorno: ALTRO, con: 'bruno', nome: NOMI.bruno } });
   await assertFails(accetta(PASSATO, ALTRO));
 });
+
+test('cambio turno: niente cambi nei giorni di chiusura, né per chi propone né per l\'altro', async () => {
+  const ALTRO = traGiorni(12);
+  const giornoSettimana = (g) => new Date(`${g}T00:00:00Z`).getUTCDay();
+  const proponi = () => scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cambio: { giorno: ALTRO, con: 'bruno', nome: NOMI.bruno } });
+  const chiusura = (c) => env.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'impostazioni', 'circolo'), { chiusura: c, apre: '', chiude: '' }));
+  await semina(FUTURO, { id: 'anna', nome: NOMI.anna });
+  await semina(ALTRO, { id: 'bruno', nome: NOMI.bruno });
+  await chiusura(giornoSettimana(ALTRO));
+  await assertFails(proponi());
+  await chiusura(giornoSettimana(FUTURO));
+  await assertFails(proponi());
+  await chiusura((giornoSettimana(FUTURO) + 3) % 7);
+  await assertSucceeds(proponi());
+  await chiusura(null);
+  await assertSucceeds(proponi());
+});

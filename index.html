@@ -620,7 +620,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/fireba
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp, writeBatch }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti, meseDaSegnare, cambioAperto } from './calendario.js?v=11'; // ?v=: vedi admin.js
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti, meseDaSegnare, cambioAperto, entroIlGiorno } from './calendario.js?v=11'; // ?v=: vedi admin.js
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { normalizzaNome, maiuscole, nomeValido, pinValido } from './profilo.js?v=3'; // ?v=: vedi admin.js
 
@@ -1053,8 +1053,8 @@ async function tocca(data) {
     } else if (t.id === io.id && !passato) {
       const scelta = await chiediGiorno(data, t.cedo
         ? 'Stai cercando un sostituto: il turno resta tuo finché qualcuno non lo prende. Se ora puoi farlo tu, tocca «Lo faccio io» e nessuno potrà più prenderlo.'
-        : 'È il tuo turno. Se non puoi farlo, cerca un sostituto: il turno resta tuo finché qualcuno non lo prende. Se lo togli, il giorno torna libero.', {
-        titolo: quando, ok: t.cedo ? 'Lo faccio io' : 'Cerco un sostituto', cambio: 'Chiedi un cambio', altro: 'Togli il turno', annulla: 'Annulla',
+        : `È il tuo turno. Se non puoi farlo, cerca un sostituto: il turno resta tuo finché qualcuno non lo prende. Se lo togli, il giorno torna libero.${chiuso(data, orari) ? ' Nei giorni di chiusura non si fanno cambi.' : ''}`, {
+        titolo: quando, ok: t.cedo ? 'Lo faccio io' : 'Cerco un sostituto', cambio: chiuso(data, orari) ? null : 'Chiedi un cambio', altro: 'Togli il turno', annulla: 'Annulla',
       });
       if (scelta === 'cambio') {
         await proponiCambio(data, t);
@@ -1093,7 +1093,7 @@ async function tocca(data) {
     await chiedi(e.code !== 'permission-denied' ? 'Controlla la connessione e riprova.'
       : t && t.cedo ? 'Questo turno non è più disponibile: guarda il calendario.'
       : !t ? 'Qualcuno ha preso questo giorno un attimo prima di te.'
-      : 'Controlla la connessione e riprova.', { titolo: 'Operazione non riuscita' });
+      : 'Il turno è cambiato nel frattempo, oppure la giornata è già finita: guarda il calendario.', { titolo: 'Operazione non riuscita' });
   }
 }
 
@@ -1101,7 +1101,7 @@ async function tocca(data) {
 // in cima. Accettare scrive i due turni insieme (firestore.rules, cambioAccettato); gli avvisi li manda functions/index.js.
 async function proponiCambio(data, t) {
   const scelte = Object.keys(turni).sort()
-    .filter((d) => d >= oggi() && turni[d].id !== io.id && !chiuso(d, orari))
+    .filter((d) => entroIlGiorno(d) && turni[d].id !== io.id && !chiuso(d, orari))
     .map((d) => [d, `${giornoLeggibile(d)} — ${turni[d].nome}`]);
   if (!scelte.length) {
     return chiedi('Per ora non ci sono turni di altri soci con cui fare cambio (nei prossimi giorni, esclusi quelli di chiusura).', { titolo: 'Nessun turno da cambiare' });

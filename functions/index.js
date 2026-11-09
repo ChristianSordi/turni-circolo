@@ -203,6 +203,16 @@ export const attivita = onDocumentWrittenWithAuthContext({ ...MINIMO, maxInstanc
   const batch = db.batch();
   righe.forEach((r, i) => batch.set(db.doc(`attivita/${event.id}-${i}`), { ...r, quando }));
   await batch.commit();
+  // Turno tolto o passato a un altro: le proposte di cambio con questo turno non valgono più. Si tolgono (senza storico:
+  // qui attore è null) e chi le aveva fatte riceve un avviso. Se nel frattempo il turno è cambiato, si lascia stare.
+  if (prima && dopo?.id !== prima.id) {
+    const proposte = await db.collection('turni').where('cambio.giorno', '==', event.params.giorno).get();
+    for (const d of proposte.docs.filter((x) => x.data().cambio.con === prima.id)) {
+      const tolta = await d.ref.update({ cambio: FieldValue.delete() }, { lastUpdateTime: d.updateTime }).then(() => true, () => false);
+      if (tolta) notifiche.push({ a: d.data().id, titolo: 'Proposta di cambio decaduta',
+        testo: `${prima.nome} non ha più il turno di ${giornoLeggibile(event.params.giorno)}: la tua proposta di cambio non vale più.` });
+    }
+  }
   if (notifiche.length) vapid();
   for (const x of notifiche) await invia(db, x);
 });

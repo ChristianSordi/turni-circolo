@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, chiusuraIl, storiaChiusure, cambioAperto, testoChiusura, fascia, avvisi, avvisoMese, meseDaSegnare, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi, serataAperta, fineSerata, centesimi, euro, fondo, datiIncasso, permessoIncasso, righeIncassi, totale, fraseIncasso } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, chiusuraIl, storiaChiusure, cambioAperto, entroIlGiorno, testoChiusura, fascia, avvisi, avvisoMese, meseDaSegnare, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi, serataAperta, fineSerata, centesimi, euro, fondo, datiIncasso, permessoIncasso, righeIncassi, totale, fraseIncasso } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -353,7 +353,6 @@ test('cambio turno: proposta, rifiuto, ritiro, accettazione', () => {
     notifiche: [{ a: 'anna', titolo: 'Cambio turno rifiutato', testo: 'Bruno Bianchi non fa cambio: il turno di sabato 10 ottobre resta tuo.' }],
   });
   assert.equal(movimenti(A, proposta, ANNA, 'anna').righe[0].azione, 'ritira-cambio');
-  assert.deepEqual(movimenti(A, proposta, ANNA, 'anna').notifiche, []);
   // Accettato: i due turni insieme, un solo avviso (a chi l'aveva proposto).
   const suA = movimenti(A, proposta, { ...BRUNO, scambio: B }, 'bruno');
   assert.deepEqual(suA.righe.map((r) => [r.socio, r.azione, r.altro]), [['bruno', 'cambio-prende', 'Anna Rossi'], ['anna', 'cambio-da', 'Bruno Bianchi']]);
@@ -371,4 +370,25 @@ test('cambio turno: proposta, rifiuto, ritiro, accettazione', () => {
   assert.equal(cambioAperto(A, proposta, {}, '2026-10-01'), false);
   assert.equal(cambioAperto(A, proposta, { [B]: BRUNO }, '2026-10-11'), false);
   assert.equal(cambioAperto(A, ANNA, { [B]: BRUNO }, '2026-10-01'), false);
+});
+
+test('cambio turno: chi l\'ha proposto lo ritira (annulla, cerca sostituto, toglie, ne propone un altro): l\'altro lo sa', () => {
+  const ANNA = { id: 'anna', nome: 'Anna Rossi' };
+  const A = '2026-10-10', B = '2026-10-13';
+  const proposta = { ...ANNA, cambio: { giorno: B, con: 'bruno', nome: 'Bruno Bianchi' } };
+  const ritirata = [{ a: 'bruno', titolo: 'Proposta di cambio ritirata',
+    testo: 'Anna Rossi ha ritirato la proposta di cambio con il tuo turno di martedì 13 ottobre.' }];
+  assert.deepEqual(movimenti(A, proposta, ANNA, 'anna').notifiche, ritirata);
+  assert.deepEqual(movimenti(A, proposta, null, 'anna').notifiche, ritirata);
+  assert.deepEqual(movimenti(A, proposta, { ...ANNA, cedo: true }, 'anna').notifiche.at(-1), ritirata[0]);
+  const aCarla = movimenti(A, proposta, { ...ANNA, cambio: { giorno: '2026-10-14', con: 'carla', nome: 'Carla Verdi' } }, 'anna').notifiche;
+  assert.deepEqual(aCarla.map((x) => [x.a, x.titolo]), [['bruno', 'Proposta di cambio ritirata'], ['carla', 'Proposta di cambio turno']]);
+  assert.deepEqual(movimenti(A, proposta, null, 'capo').notifiche, []); // l'admin: nessun avviso
+  assert.deepEqual(movimenti(A, proposta, ANNA, null).notifiche, []);   // la funzione che la toglie perché decaduta
+});
+
+test('entroIlGiorno: come firestore.rules, fino alle 22:00 UTC del giorno', () => {
+  assert.equal(entroIlGiorno('2026-11-12', new Date(Date.UTC(2026, 10, 12, 21, 59))), true);
+  assert.equal(entroIlGiorno('2026-11-12', new Date(Date.UTC(2026, 10, 12, 22, 0))), false); // le 23 in Italia
+  assert.equal(entroIlGiorno('2026-11-13', new Date(Date.UTC(2026, 10, 12, 23, 0))), true);
 });

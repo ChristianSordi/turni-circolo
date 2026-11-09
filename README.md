@@ -22,10 +22,13 @@ ancora giorni liberi, un riquadro te lo ricorda; con OK il calendario va su quel
   non lo prende: allora, se hai attivato i promemoria, ti arriva un avviso; altrimenti lo vedi in calendario. Ci hai ripensato? Tocca il giorno → "Lo faccio io".
 - **Vuoi prendere il turno di un altro?** Tocca un giorno arancione → "Prendo io il turno".
 - **Cambio turno:** tocca il tuo giorno → "Chiedi un cambio" e scegli dall'elenco il turno (giorno e socio) che faresti al
-  suo posto: solo giorni non ancora passati, con un altro socio segnato, non di chiusura. Il tuo giorno diventa viola
-  con la scritta "cambio" finché l'altro non risponde; fino ad allora i due turni restano come sono. All'altro la
-  proposta compare in cima all'app ("Accetto il cambio" / "No, rifiuto") e, se ha i promemoria attivi, gli arriva un
-  avviso; anche a te arriva un avviso quando risponde. Ci hai ripensato? Tocca il giorno viola → "Annulla la proposta".
+  suo posto: solo giorni non ancora passati, con un altro socio segnato. Nei giorni di chiusura niente cambi, né per il
+  tuo turno né per l'altro. Il tuo giorno diventa viola con la scritta "cambio" finché l'altro non risponde; fino ad
+  allora i due turni restano come sono. All'altro la proposta compare in cima all'app ("Accetto il cambio" / "No,
+  rifiuto") e, se ha i promemoria attivi, gli arriva un avviso; anche a te arriva un avviso quando risponde. Ci hai
+  ripensato? Tocca il giorno viola → "Annulla la proposta" (all'altro arriva un avviso, come se cerchi un sostituto o
+  togli il turno). Se l'altro non ha più quel turno (l'ha tolto, ceduto o cambiato con un altro), la proposta decade
+  da sola e ti arriva un avviso.
 - **Giorno di chiusura:** la casella è a righe con scritto "chiuso". Se vuoi aprire lo stesso, toccala →
   "Apro io e mi segno": il turno lo vedono tutti come gli altri.
 - **Chiavi del circolo:** la scheda **Chiavi** dice in cima se hai le chiavi. Se le hai, quando le dai a un altro
@@ -142,7 +145,8 @@ riattivati su ogni telefono.
 
 La funzione `chiavi` scrive `storico-chiavi` a ogni modifica di `chiavi/circolo` e avvisa chi deve confermare una
 consegna. La funzione `attivita` (stesso file, stessa regione) scatta a ogni modifica di un turno: scrive lo storico
-e manda gli avvisi di "Cerco un sostituto" e dei cambi turno (proposto, accettato, rifiutato). Il cambio accettato
+e manda gli avvisi di "Cerco un sostituto" e dei cambi turno (proposto, accettato, rifiutato, ritirato, decaduto: le
+proposte con un turno che passa di mano le toglie lei). Il cambio accettato
 scrive i due turni insieme dal telefono di chi accetta: lo controlla `cambioAccettato` in `firestore.rules`. La funzione `elenco` rifà `elenco/soci` (id → nome, senza chiavi) a ogni
 scrittura in `persone`: è l'elenco che tutti vedono sotto il calendario. `npm run e2e` prova le funzioni sull'emulatore.
 
