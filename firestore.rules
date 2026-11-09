@@ -46,6 +46,44 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Cambio turno. Proposta: sul proprio turno, cambio = { giorno, con, nome } = il turno futuro di un altro socio.
+    function cambioProposto(data) {
+      let c = request.resource.data.get('cambio', {});
+      return resource.data.id == persona(dispositivo().segreto).id
+        && request.resource.data.keys().hasOnly(['id', 'nome', 'cambio'])
+        && request.resource.data.id == resource.data.id && request.resource.data.nome == resource.data.nome
+        && c.keys().hasOnly(['giorno', 'con', 'nome'])
+        && c.giorno is string && c.giorno.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && c.giorno != data
+        && entroIlGiorno(c.giorno) && c.con != resource.data.id
+        && get(/databases/$(database)/documents/turni/$(c.giorno)).data.id == c.con
+        && get(/databases/$(database)/documents/turni/$(c.giorno)).data.nome == c.nome;
+    }
+    // Rifiuto: chi riceve la proposta la toglie dal turno dell'altro, senza cambiare altro.
+    function cambioRifiutato() {
+      return resource.data.get('cambio', {}).get('con', '') == persona(dispositivo().segreto).id
+        && request.resource.data.keys().hasOnly(['id', 'nome'])
+        && request.resource.data.id == resource.data.id && request.resource.data.nome == resource.data.nome;
+    }
+    // Cambio accettato: chi ha ricevuto la proposta scrive i due turni insieme (scambio = l'altro giorno).
+    // Sul turno di chi l'ha proposto (data): ora è suo, e il suo è passato a chi l'ha proposto.
+    // Sul proprio: passa a chi ora non ha più l'altro giorno, che deve essere diventato suo nella stessa scrittura.
+    function cambioAccettato(data) {
+      let io = persona(dispositivo().segreto);
+      let g = request.resource.data.get('scambio', '');
+      let dopo = request.resource.data;
+      return g is string && g.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && g != data
+        && (
+          (resource.data.get('cambio', {}).get('con', '') == io.id && resource.data.cambio.giorno == g
+            && dopo == { 'id': io.id, 'nome': io.nome, 'scambio': g }
+            && get(/databases/$(database)/documents/turni/$(g)).data.id == io.id
+            && getAfter(/databases/$(database)/documents/turni/$(g)).data == { 'id': resource.data.id, 'nome': resource.data.nome, 'scambio': data })
+          || (resource.data.id == io.id
+            && getAfter(/databases/$(database)/documents/turni/$(g)).data == { 'id': io.id, 'nome': io.nome, 'scambio': data }
+            && dopo == { 'id': get(/databases/$(database)/documents/turni/$(g)).data.id,
+                         'nome': get(/databases/$(database)/documents/turni/$(g)).data.nome, 'scambio': g })
+        );
+    }
+
     // Un documento per giorno: "create" riesce solo se il giorno è libero.
     match /turni/{data} {
       // Solo dispositivi collegati a un profilo ancora esistente (dopo un reset PIN il vecchio non legge più).
@@ -72,6 +110,7 @@ service cloud.firestore {
             && request.resource.data.keys().hasOnly(['id', 'nome'])
             && request.resource.data.id == persona(dispositivo().segreto).id
             && request.resource.data.nome == persona(dispositivo().segreto).nome)
+          || cambioProposto(data) || cambioRifiutato() || cambioAccettato(data)
         );
     }
 
@@ -94,8 +133,9 @@ service cloud.firestore {
     match /impostazioni/{id} {
       allow read: if true;
       allow create, update: if isAdmin() && id == 'circolo'
-        && request.resource.data.keys().hasOnly(['chiusura', 'apre', 'chiude'])
+        && request.resource.data.keys().hasOnly(['chiusura', 'chiusure', 'apre', 'chiude'])
         && (request.resource.data.chiusura == null || request.resource.data.chiusura in [0, 1, 2, 3, 4, 5, 6])
+        && request.resource.data.get('chiusure', {}) is map
         && ora(request.resource.data.apre) && ora(request.resource.data.chiude);
       // Iscrizioni aperte fino a "fino" (24 ore dall'apertura); chiudere = fino adesso. Senza documento: chiuse.
       allow create, update: if isAdmin() && id == 'iscrizioni'

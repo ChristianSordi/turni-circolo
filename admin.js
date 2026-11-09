@@ -6,9 +6,9 @@ import { doc, getDocs, onSnapshot, setDoc, deleteDoc, collection, query, where, 
 import { chiave, pinValido, idTentativi } from './profilo.js?v=3';
 // ?v=: GitHub Pages lascia i file in cache 10 minuti; senza, un telefono può unire questo admin.js nuovo a un
 // calendario.js vecchio. ponytail: v da aumentare a mano quando calendario.js cambia.
-import { iso, fraseStorico, titoloGiorno, serataAperta } from './calendario.js?v=10';
+import { iso, fraseStorico, titoloGiorno, serataAperta, storiaChiusure } from './calendario.js?v=11';
 
-export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }) {
+export function avviaAdmin({ db, io, turni, orari, $, el, chiedi, avvisoBreve, turniN, mostraVista }) {
   let soci = [];      // [{ id, nome, segreto }]
   let accessi = {};   // id socio → { n, ultimo }
 
@@ -145,7 +145,9 @@ export function avviaAdmin({ db, io, turni, $, el, chiedi, avvisoBreve, turniN, 
     if (!apre !== !chiude) return chiedi('Scrivi sia l\'apertura sia la chiusura, oppure lascia vuoti entrambi.');
     $('salva-orari').disabled = true;
     try {
-      await setDoc(doc(db, 'impostazioni', 'circolo'), { apre, chiude, chiusura: c === '' ? null : Number(c) });
+      const chiusura = c === '' ? null : Number(c);
+      // Il giorno di chiusura nuovo vale da oggi: i turni già fatti restano extra secondo quello di allora (classifica).
+      await setDoc(doc(db, 'impostazioni', 'circolo'), { apre, chiude, chiusura, chiusure: storiaChiusure(orari(), chiusura, iso(new Date())) });
       avvisoBreve('Orari salvati');
     } catch {
       await chiedi('Controlla la connessione e riprova.', { titolo: 'Orari non salvati' });

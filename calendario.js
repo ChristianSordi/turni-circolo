@@ -19,11 +19,23 @@ export const giornoLeggibile = (s) =>
 
 // Giorno di chiusura settimanale come getDay (0 = domenica … 6 = sabato); null = sempre aperto.
 export const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
-export const chiuso = (s, chiusura) => chiusura != null && giorno(s).getDay() === chiusura;
+// Il giorno di chiusura può cambiare: orari.chiusure = { 'AAAA-MM-GG': giorno } vale da quel giorno in poi (lo scrive
+// admin.js con storiaChiusure). Senza, vale orari.chiusura per tutti i giorni.
+export function chiusuraIl(s, { chiusura = null, chiusure = {} } = {}) {
+  const dal = Object.keys(chiusure).filter((d) => d <= s).sort().at(-1);
+  return dal ? chiusure[dal] : chiusura;
+}
+// orari = impostazioni/circolo
+export const chiuso = (s, orari) => { const c = chiusuraIl(s, orari); return c != null && giorno(s).getDay() === c; };
+// chiusure da salvare con la nuova chiusura: se cambia, vale da oggi; prima, quella di prima (anche per i turni già fatti).
+export function storiaChiusure(prima = {}, nuova, oggi) {
+  const storia = prima.chiusure ?? { '2000-01-01': prima.chiusura ?? null };
+  return chiusuraIl(oggi, prima) === nuova ? storia : { ...storia, [oggi]: nuova };
+}
 // Turni coperti nel mese: [giorni aperti con un turno, giorni aperti]. I giorni di chiusura contano solo se un
 // socio ha deciso di aprire lo stesso (c'è un turno).
-export function coperti(anno, mese, turni, chiusura) {
-  const aperti = griglia(anno, mese).filter((d) => d && (!chiuso(d, chiusura) || turni[d]));
+export function coperti(anno, mese, turni, orari) {
+  const aperti = griglia(anno, mese).filter((d) => d && (!chiuso(d, orari) || turni[d]));
   return [aperti.filter((d) => turni[d]).length, aperti.length];
 }
 export const testoChiusura = (c) => (c == null ? '' : `chiuso ${c === 0 ? 'la' : 'il'} ${GIORNI[c]}`);
@@ -36,13 +48,15 @@ export const fascia = ({ apre, chiude } = {}) =>
 // anno 'AAAA', 'AAAA-MM' (un mese) o null = da sempre.
 // Posti tutti diversi (1, 2, 3…): a pari turni è davanti chi ci è arrivato prima (ultimo turno più vecchio).
 // In fondo, in ordine alfabetico, i `soci` (id → nome) con 0 turni nel periodo.
-export function classifica(turni, oggi, anno = null, soci = {}) {
+// extra: quanti di quei turni nel giorno di chiusura di allora (orari = impostazioni/circolo).
+export function classifica(turni, oggi, anno = null, soci = {}, orari = {}) {
   const conta = new Map();
   for (const [data, t] of Object.entries(turni).sort()) {
     if (data >= oggi || (anno && !data.startsWith(anno))) continue;
-    conta.set(t.id, { id: t.id, nome: t.nome, turni: (conta.get(t.id)?.turni ?? 0) + 1, ultimo: data });
+    const r = conta.get(t.id);
+    conta.set(t.id, { id: t.id, nome: t.nome, turni: (r?.turni ?? 0) + 1, extra: (r?.extra ?? 0) + (chiuso(data, orari) ? 1 : 0), ultimo: data });
   }
-  for (const [id, nome] of Object.entries(soci)) if (!conta.has(id)) conta.set(id, { id, nome, turni: 0, ultimo: '' });
+  for (const [id, nome] of Object.entries(soci)) if (!conta.has(id)) conta.set(id, { id, nome, turni: 0, extra: 0, ultimo: '' });
   const righe = [...conta.values()]
     .sort((a, b) => b.turni - a.turni || a.ultimo.localeCompare(b.ultimo) || a.nome.localeCompare(b.nome, 'it'));
   righe.forEach((r, i) => { r.posto = i + 1; });
@@ -74,12 +88,12 @@ export function avvisoMese(oggi) {
 
 // Mese ('AAAA-MM') in cui ricordare al socio `id` di segnarsi, o null. Prima quello in corso, se non ci ha un turno;
 // nell'ultima settimana, poi, il prossimo. Solo se restano giorni liberi (da oggi, aperti, senza turno).
-export function meseDaSegnare(oggi, turni, id, chiusura) {
+export function meseDaSegnare(oggi, turni, id, orari) {
   const g = giorno(oggi);
   const prossimo = iso(new Date(g.getFullYear(), g.getMonth() + 1, 1)).slice(0, 7);
   const ultimaSettimana = iso(new Date(g.getFullYear(), g.getMonth(), g.getDate() + 7)) >= prossimo;
   const libero = (m) => griglia(Number(m.slice(0, 4)), m.slice(5) - 1)
-    .some((d) => d && d >= oggi && !turni[d] && !chiuso(d, chiusura));
+    .some((d) => d && d >= oggi && !turni[d] && !chiuso(d, orari));
   const daSegnare = (m) => libero(m) && !Object.entries(turni).some(([d, t]) => t.id === id && d.startsWith(m));
   return [oggi.slice(0, 7), ...(ultimaSettimana ? [prossimo] : [])].find(daSegnare) ?? null;
 }
@@ -89,13 +103,34 @@ export const fraseMese = (primo, manca) => ({
   testo: 'Ricordati di segnare il tuo turno: apri Turni e tocca un giorno libero.',
 });
 
-// Storico e notifiche di una modifica a turni/{giorno}. prima/dopo: { id, nome, cedo? } o null.
-// attore: id del socio che l'ha fatta; null = non si sa (console Firebase).
+// Proposta di cambio ancora valida sul turno t del giorno d: nessuno dei due giorni passato e l'altro turno ancora suo.
+export const cambioAperto = (d, t, turni, oggi) =>
+  Boolean(t?.cambio && d >= oggi && t.cambio.giorno >= oggi && turni[t.cambio.giorno]?.id === t.cambio.con);
+
+// Storico e notifiche di una modifica a turni/{giorno}. prima/dopo: { id, nome, cedo?, cambio?, scambio? } o null.
+// cambio = { giorno, con, nome }: proposta di cambio con il turno di un altro socio; scambio = l'altro giorno del cambio
+// accettato (si scrivono i due turni insieme). attore: id del socio che l'ha fatta; null = non si sa (console Firebase).
 export function movimenti(giorno, prima, dopo, attore, orari = {}) {
-  const riga = (t, azione, altro) => ({ socio: t.id, nome: t.nome, azione, giorno, ...(altro && { altro }) });
+  const riga = (t, azione, altro, scambio) => ({ socio: t.id, nome: t.nome, azione, giorno, ...(altro && { altro }), ...(scambio && { scambio }) });
   const solo = (r) => ({ righe: [r], notifiche: [] });
   if (!prima) return solo(riga(dopo, attore && attore !== dopo.id ? 'segnato-admin' : 'segna'));
   if (!dopo) return solo(riga(prima, attore === null ? 'tolto' : attore === prima.id ? 'toglie' : 'tolto-admin'));
+  if (prima.id !== dopo.id && dopo.scambio) {
+    return {
+      righe: [riga(dopo, 'cambio-prende', prima.nome), riga(prima, 'cambio-da', dopo.nome)],
+      // Lo stesso cambio scrive due turni: l'avviso parte una volta, da quello di chi l'aveva proposto.
+      notifiche: prima.cambio ? [{ a: prima.id, titolo: 'Cambio turno accettato',
+        testo: `${dopo.nome} ha accettato il cambio: ora il tuo turno è ${giornoLeggibile(dopo.scambio)}, non più ${giornoLeggibile(giorno)}.` }] : [],
+    };
+  }
+  const c = dopo.cambio;
+  if (prima.id === dopo.id && c && (prima.cambio?.giorno !== c.giorno || prima.cambio?.con !== c.con)) {
+    return {
+      righe: [riga(dopo, 'propone', c.nome, c.giorno)],
+      notifiche: [{ a: c.con, titolo: 'Proposta di cambio turno',
+        testo: `${dopo.nome} ti chiede di fare cambio: tu fai il suo turno di ${giornoLeggibile(giorno)}, in cambio del tuo di ${giornoLeggibile(c.giorno)}. Apri Turni per rispondere.` }],
+    };
+  }
   if (prima.id !== dopo.id) {
     return {
       righe: [riga(dopo, 'prende', prima.nome), riga(prima, 'cede', dopo.nome)],
@@ -110,11 +145,19 @@ export function movimenti(giorno, prima, dopo, attore, orari = {}) {
     };
   }
   if (prima.cedo && !dopo.cedo) return solo(riga(dopo, 'ritira'));
+  const p = prima.cambio;
+  if (p && !c && attore === p.con) {
+    return {
+      righe: [riga({ id: p.con, nome: p.nome }, 'rifiuta-cambio', prima.nome, p.giorno)],
+      notifiche: [{ a: prima.id, titolo: 'Cambio turno rifiutato', testo: `${p.nome} non fa cambio: il turno di ${giornoLeggibile(giorno)} resta tuo.` }],
+    };
+  }
+  if (p && !c && attore === prima.id) return solo(riga(dopo, 'ritira-cambio', p.nome, p.giorno));
   return { righe: [], notifiche: [] };
 }
 
 // Una riga dello storico per l'admin, in parole: "ha ceduto il turno di sabato 10 ottobre a Bruno Bianchi".
-export function fraseStorico({ azione, giorno, altro, importato }) {
+export function fraseStorico({ azione, giorno, altro, scambio, importato }) {
   const g = `il turno di ${giornoLeggibile(giorno)}`;
   const frase = {
     segna: `ha segnato ${g}`,
@@ -126,6 +169,11 @@ export function fraseStorico({ azione, giorno, altro, importato }) {
     ritira: `farà ${g}: non cerca più un sostituto`,
     prende: `ha preso ${g} da ${altro}`,
     cede: `ha ceduto ${g} a ${altro}`,
+    propone: `ha proposto a ${altro} di fare cambio: ${g} con il suo di ${scambio && giornoLeggibile(scambio)}`,
+    'ritira-cambio': `ha ritirato la proposta di cambio a ${altro} per ${g}`,
+    'rifiuta-cambio': `ha rifiutato il cambio proposto da ${altro} per ${g}`,
+    'cambio-prende': `ha preso con un cambio ${g} da ${altro}`,
+    'cambio-da': `ha dato con un cambio ${g} a ${altro}`,
   }[azione] ?? `${azione}: ${g}`;
   return importato ? `${frase} (da prima dello storico)` : frase;
 }

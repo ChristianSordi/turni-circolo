@@ -1,7 +1,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, increment, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, increment, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 const CHIAVE_ANNA = 'chiave-anna-0123456789';
 const CHIAVE_BRUNO = 'chiave-bruno-0123456789';
@@ -171,6 +171,8 @@ test('orari: li legge chiunque, li scrive solo l\'admin, solo valori sensati', a
   await diventaAdmin('capo');
   await assertSucceeds(setDoc(orari('capo'), buoni));
   await assertSucceeds(setDoc(orari('capo'), { chiusura: null, apre: '', chiude: '' }));
+  await assertSucceeds(setDoc(orari('capo'), { ...buoni, chiusura: 2, chiusure: { '2000-01-01': 1, '2026-12-01': 2 } }));
+  await assertFails(setDoc(orari('capo'), { ...buoni, chiusure: 'lunedì' }));
   await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'impostazioni', 'circolo')));
   for (const male of [{ ...buoni, chiusura: 7 }, { ...buoni, apre: '25:00' }, { ...buoni, apre: '<b>' }, { ...buoni, extra: 1 }]) {
     await assertFails(setDoc(orari('capo'), male));
@@ -398,4 +400,66 @@ test('interruttori degli incassi: li cambia solo l\'admin, solo vero o falso e u
     await assertFails(setDoc(imp('capo'), male));
   }
   await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'impostazioni', 'incassi')));
+});
+
+test('cambio turno: si propone sul proprio turno, con un turno futuro di un altro socio', async () => {
+  const ALTRO = traGiorni(12);
+  const cambio = { giorno: ALTRO, con: 'bruno', nome: NOMI.bruno };
+  await semina(FUTURO, { id: 'anna', nome: NOMI.anna });
+  await semina(ALTRO, { id: 'bruno', nome: NOMI.bruno });
+  await semina(PASSATO, { id: 'bruno', nome: NOMI.bruno });
+  await assertFails(scrivi('bruno', FUTURO, { id: 'anna', nome: NOMI.anna, cambio })); // non è suo
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cambio: { ...cambio, con: 'carla' } }));
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cambio: { ...cambio, nome: 'Altro Nome' } }));
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cambio: { ...cambio, giorno: PASSATO } }));
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cambio: { ...cambio, giorno: traGiorni(20) } })); // nessuno
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cambio: { ...cambio, extra: 1 } }));
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cambio, cedo: true }));
+  await assertSucceeds(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cambio }));
+  await assertSucceeds(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna })); // la ritira
+  await semina(traGiorni(14), { id: 'anna', nome: NOMI.anna });
+  await assertFails(scrivi('anna', FUTURO, { id: 'anna', nome: NOMI.anna, cambio: { giorno: traGiorni(14), con: 'anna', nome: NOMI.anna } })); // con sé
+});
+
+test('cambio turno: lo rifiuta solo chi l\'ha ricevuto, lo accetta scrivendo i due turni insieme', async () => {
+  const ALTRO = traGiorni(12);
+  const anna = { id: 'anna', nome: NOMI.anna }, bruno = { id: 'bruno', nome: NOMI.bruno };
+  const proposto = () => semina(FUTURO, { ...anna, cambio: { giorno: ALTRO, con: 'bruno', nome: NOMI.bruno } });
+  await semina(ALTRO, bruno);
+  await proposto();
+  await assertFails(scrivi('carla', FUTURO, anna));
+  await assertFails(scrivi('bruno', FUTURO, { id: 'anna', nome: 'Anna Rossi Due' }));
+  await assertSucceeds(scrivi('bruno', FUTURO, anna)); // rifiuta
+  await proposto();
+  const accetta = (uid, a, b) => {
+    const d = db(uid), w = writeBatch(d);
+    w.set(doc(d, 'turni', FUTURO), a);
+    w.set(doc(d, 'turni', ALTRO), b);
+    return w.commit();
+  };
+  // Da solo un turno non basta: l'altro deve passare nella stessa scrittura.
+  await assertFails(scrivi('bruno', FUTURO, { ...bruno, scambio: ALTRO }));
+  await assertFails(scrivi('bruno', ALTRO, { ...anna, scambio: FUTURO }));
+  await assertFails(accetta('carla', { ...bruno, scambio: ALTRO }, { ...anna, scambio: FUTURO }));
+  await assertFails(accetta('anna', { ...bruno, scambio: ALTRO }, { ...anna, scambio: FUTURO })); // chi propone non accetta
+  await assertFails(accetta('bruno', { ...bruno, scambio: ALTRO }, { id: 'bruno', nome: NOMI.bruno, scambio: FUTURO }));
+  await assertSucceeds(accetta('bruno', { ...bruno, scambio: ALTRO }, { ...anna, scambio: FUTURO }));
+  // Fatto: la proposta non c'è più, non si riaccetta.
+  await assertFails(accetta('bruno', { ...bruno, scambio: ALTRO }, { ...anna, scambio: FUTURO }));
+});
+
+test('cambio turno: senza proposta, o con l\'altro turno passato, non si accetta', async () => {
+  const ALTRO = traGiorni(12);
+  const anna = { id: 'anna', nome: NOMI.anna }, bruno = { id: 'bruno', nome: NOMI.bruno };
+  const accetta = (giornoA, giornoB) => {
+    const d = db('bruno'), w = writeBatch(d);
+    w.set(doc(d, 'turni', giornoA), { ...bruno, scambio: giornoB });
+    w.set(doc(d, 'turni', giornoB), { ...anna, scambio: giornoA });
+    return w.commit();
+  };
+  await semina(FUTURO, anna);
+  await semina(ALTRO, bruno);
+  await assertFails(accetta(FUTURO, ALTRO)); // Anna non l'ha proposto
+  await semina(PASSATO, { ...anna, cambio: { giorno: ALTRO, con: 'bruno', nome: NOMI.bruno } });
+  await assertFails(accetta(PASSATO, ALTRO));
 });

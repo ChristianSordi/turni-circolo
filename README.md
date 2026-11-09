@@ -4,7 +4,7 @@ Agenda condivisa dei turni del circolo: https://christiansordi.github.io/turni-c
 
 La prima volta si apre il link del circolo (quello del gruppo WhatsApp), si scrivono nome e cognome e
 si sceglie un PIN di 4 cifre. Poi basta toccare un giorno libero per segnarsi. Nessun account, niente
-da installare. La scheda **Classifica** conta i turni già fatti, di un mese, di un anno o da sempre (si sceglie tra quelli con almeno un turno); in fondo i soci con 0 turni. Sotto il calendario
+da installare. La scheda **Classifica** conta i turni già fatti, di un mese, di un anno o da sempre (si sceglie tra quelli con almeno un turno); in fondo i soci con 0 turni. Tra parentesi quanti sono extra, cioè fatti nel giorno di chiusura (quello in vigore quel giorno). Sotto il calendario
 c'è l'elenco dei soci, in ordine alfabetico, con quanti turni ha segnato ciascuno nel mese che stai guardando.
 Quando apri l'app, se non hai un turno nel mese in corso (o, nell'ultima settimana del mese, nel prossimo) e ci sono
 ancora giorni liberi, un riquadro te lo ricorda; con OK il calendario va su quel mese.
@@ -21,6 +21,11 @@ ancora giorni liberi, un riquadro te lo ricorda; con OK il calendario va su quel
   con la scritta "cercasi" e chi ha i promemoria attivi riceve un avviso. Il turno resta tuo finché qualcuno
   non lo prende: allora, se hai attivato i promemoria, ti arriva un avviso; altrimenti lo vedi in calendario. Ci hai ripensato? Tocca il giorno → "Lo faccio io".
 - **Vuoi prendere il turno di un altro?** Tocca un giorno arancione → "Prendo io il turno".
+- **Cambio turno:** tocca il tuo giorno → "Chiedi un cambio" e scegli dall'elenco il turno (giorno e socio) che faresti al
+  suo posto: solo giorni non ancora passati, con un altro socio segnato, non di chiusura. Il tuo giorno diventa viola
+  con la scritta "cambio" finché l'altro non risponde; fino ad allora i due turni restano come sono. All'altro la
+  proposta compare in cima all'app ("Accetto il cambio" / "No, rifiuto") e, se ha i promemoria attivi, gli arriva un
+  avviso; anche a te arriva un avviso quando risponde. Ci hai ripensato? Tocca il giorno viola → "Annulla la proposta".
 - **Giorno di chiusura:** la casella è a righe con scritto "chiuso". Se vuoi aprire lo stesso, toccala →
   "Apro io e mi segno": il turno lo vedono tutti come gli altri.
 - **Chiavi del circolo:** la scheda **Chiavi** dice in cima se hai le chiavi. Se le hai, quando le dai a un altro
@@ -68,7 +73,8 @@ ancora giorni liberi, un riquadro te lo ricorda; con OK il calendario va su quel
   vai nella console Firebase → Firestore ed elimina `accessi/<id del socio>` e i documenti di `attivita` con
   `socio` = quell'id (filtra sul campo). L'id lo vedi in `persone` prima di eliminare, o nel campo `socio` delle sue righe in `attivita`.
   Da quel telefono non potrà più iscriversi: se deve tornare, lo fa da un altro browser o telefono.
-- **Orari e giorno di chiusura:** scheda **Circolo** → "Salva orari".
+- **Orari e giorno di chiusura:** scheda **Circolo** → "Salva orari". Un giorno di chiusura nuovo vale da oggi: i giorni
+  passati restano con quello di allora (`chiusure` in `impostazioni/circolo`), anche per gli extra della classifica.
   Gli orari compaiono in cima alla pagina per tutti; il giorno di chiusura è a righe in calendario, ma chi vuole
   aprire lo stesso può segnarsi (conta nei "turni coperti" del mese).
 - **Registro degli incassi:** scheda **Circolo** → "Incassi attivi" (e, se vuoi, "Avviso alle 11 se manca l'incasso
@@ -136,7 +142,8 @@ riattivati su ogni telefono.
 
 La funzione `chiavi` scrive `storico-chiavi` a ogni modifica di `chiavi/circolo` e avvisa chi deve confermare una
 consegna. La funzione `attivita` (stesso file, stessa regione) scatta a ogni modifica di un turno: scrive lo storico
-e manda gli avvisi di "Cerco un sostituto". La funzione `elenco` rifà `elenco/soci` (id → nome, senza chiavi) a ogni
+e manda gli avvisi di "Cerco un sostituto" e dei cambi turno (proposto, accettato, rifiutato). Il cambio accettato
+scrive i due turni insieme dal telefono di chi accetta: lo controlla `cambioAccettato` in `firestore.rules`. La funzione `elenco` rifà `elenco/soci` (id → nome, senza chiavi) a ogni
 scrittura in `persone`: è l'elenco che tutti vedono sotto il calendario. `npm run e2e` prova le funzioni sull'emulatore.
 
 Backup e storico iniziale (una volta sola): console Firebase → Impostazioni progetto → Account di servizio →

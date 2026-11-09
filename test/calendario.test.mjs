@@ -1,7 +1,7 @@
 process.env.TZ = 'Europe/Rome'; // prima di qualsiasi Date: fa emergere l'errore UTC di toISOString
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, avvisi, avvisoMese, meseDaSegnare, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi, serataAperta, fineSerata, centesimi, euro, fondo, datiIncasso, permessoIncasso, righeIncassi, totale, fraseIncasso } from '../calendario.js';
+import { iso, griglia, giornoLeggibile, classifica, chiuso, chiusuraIl, storiaChiusure, cambioAperto, testoChiusura, fascia, avvisi, avvisoMese, meseDaSegnare, quandoTurno, movimenti, fraseStorico, titoloGiorno, coperti, movimentiChiavi, fraseChiavi, serataAperta, fineSerata, centesimi, euro, fondo, datiIncasso, permessoIncasso, righeIncassi, totale, fraseIncasso } from '../calendario.js';
 
 test('iso usa la data locale anche subito dopo mezzanotte', () => {
   assert.equal(iso(new Date(2026, 9, 12, 0, 30)), '2026-10-12');
@@ -53,10 +53,11 @@ test('classifica: solo turni fatti, per socio, a pari turni prima chi ci è arri
 });
 
 test('giorno di chiusura e orari', () => {
-  assert.equal(chiuso('2026-10-05', 1), true); // lunedì
-  assert.equal(chiuso('2026-10-04', 1), false);
-  assert.equal(chiuso('2026-10-04', 0), true); // domenica = 0, non "falso"
-  assert.equal(chiuso('2026-10-05', null), false);
+  assert.equal(chiuso('2026-10-05', { chiusura: 1 }), true); // lunedì
+  assert.equal(chiuso('2026-10-04', { chiusura: 1 }), false);
+  assert.equal(chiuso('2026-10-04', { chiusura: 0 }), true); // domenica = 0, non "falso"
+  assert.equal(chiuso('2026-10-05', { chiusura: null }), false);
+  assert.equal(chiuso('2026-10-05', {}), false);
   assert.equal(testoChiusura(1), 'chiuso il lunedì');
   assert.equal(testoChiusura(0), 'chiuso la domenica');
   assert.equal(testoChiusura(null), '');
@@ -138,8 +139,8 @@ test('titoloGiorno: Oggi, Ieri, altrimenti il giorno per esteso', () => {
 
 test('coperti: ottobre 2026 ha 4 lunedì; un lunedì aperto da un socio conta', () => {
   const turni = { '2026-10-02': {}, '2026-10-03': {}, '2026-10-05': {}, '2026-11-01': {} }; // il 5 è lunedì
-  assert.deepEqual(coperti(2026, 9, turni, 1), [3, 28]);
-  assert.deepEqual(coperti(2026, 9, turni, null), [3, 31]); // sempre aperto
+  assert.deepEqual(coperti(2026, 9, turni, { chiusura: 1 }), [3, 28]);
+  assert.deepEqual(coperti(2026, 9, turni, { chiusura: null }), [3, 31]); // sempre aperto
 });
 
 const NOMI = { anna: 'Anna Rossi', bruno: 'Bruno Bianchi' };
@@ -308,6 +309,66 @@ test('meseDaSegnare: prima il mese in corso, nell\'ultima settimana il prossimo,
   const pieno = { '2026-10-29': altro, '2026-10-30': altro, '2026-10-31': altro };
   assert.equal(meseDaSegnare('2026-10-29', pieno, 'io'), '2026-11');
   // Il 31 è sabato: con chiusura il sabato (6) e 29, 30 presi, ottobre non ha più giorni liberi.
-  assert.equal(meseDaSegnare('2026-10-29', { '2026-10-29': altro, '2026-10-30': altro }, 'io', 6), '2026-11');
+  assert.equal(meseDaSegnare('2026-10-29', { '2026-10-29': altro, '2026-10-30': altro }, 'io', { chiusura: 6 }), '2026-11');
   assert.equal(meseDaSegnare('2026-12-28', { '2026-12-01': io }, 'io'), '2027-01'); // a cavallo d'anno
+});
+
+test('giorno di chiusura che cambia: vale da quando l\'admin lo cambia, prima resta quello di prima', () => {
+  const lun = { chiusura: 1 };
+  assert.deepEqual(storiaChiusure(lun, 1, '2026-12-01'), { '2000-01-01': 1 }); // uguale: niente di nuovo
+  const mar = { chiusura: 2, chiusure: storiaChiusure(lun, 2, '2026-12-01') };
+  assert.deepEqual(mar.chiusure, { '2000-01-01': 1, '2026-12-01': 2 });
+  assert.equal(chiusuraIl('2026-11-30', mar), 1);
+  assert.equal(chiusuraIl('2026-12-01', mar), 2);
+  assert.equal(chiuso('2026-11-30', mar), true);  // lunedì, quando si chiudeva il lunedì
+  assert.equal(chiuso('2026-12-07', mar), false); // lunedì, ora si chiude il martedì
+  assert.equal(chiuso('2026-12-08', mar), true);
+  const sempre = { chiusura: null, chiusure: storiaChiusure(mar, null, '2027-01-10') };
+  assert.equal(chiusuraIl('2027-01-12', sempre), null);
+  assert.equal(chiuso('2026-12-08', sempre), true);
+});
+
+test('classifica: tra i turni fatti, quanti nel giorno di chiusura di allora', () => {
+  const a = { id: 'a', nome: 'Anna' }, b = { id: 'b', nome: 'Bruno' };
+  // 30/11 lunedì (chiuso allora), 7/12 lunedì (non più), 8/12 martedì (chiuso da dicembre), 9/12 mercoledì
+  const turni = { '2026-11-30': a, '2026-12-07': a, '2026-12-08': a, '2026-12-09': b };
+  const orari = { chiusura: 2, chiusure: { '2000-01-01': 1, '2026-12-01': 2 } };
+  assert.deepEqual(classifica(turni, '2026-12-31', null, { c: 'Carla' }, orari).map((r) => [r.id, r.turni, r.extra]),
+    [['a', 3, 2], ['b', 1, 0], ['c', 0, 0]]);
+  assert.deepEqual(classifica(turni, '2026-12-31', '2026-11', {}, orari).map((r) => [r.id, r.extra]), [['a', 1]]);
+});
+
+test('cambio turno: proposta, rifiuto, ritiro, accettazione', () => {
+  const ANNA = { id: 'anna', nome: 'Anna Rossi' }, BRUNO = { id: 'bruno', nome: 'Bruno Bianchi' };
+  const A = '2026-10-10', B = '2026-10-13';
+  const proposta = { ...ANNA, cambio: { giorno: B, con: 'bruno', nome: BRUNO.nome } };
+  assert.deepEqual(movimenti(A, ANNA, proposta, 'anna'), {
+    righe: [{ socio: 'anna', nome: 'Anna Rossi', azione: 'propone', giorno: A, altro: 'Bruno Bianchi', scambio: B }],
+    notifiche: [{ a: 'bruno', titolo: 'Proposta di cambio turno',
+      testo: 'Anna Rossi ti chiede di fare cambio: tu fai il suo turno di sabato 10 ottobre, in cambio del tuo di martedì 13 ottobre. Apri Turni per rispondere.' }],
+  });
+  assert.equal(movimenti(A, { ...ANNA, cedo: true }, proposta, 'anna').righe[0].azione, 'propone');
+  assert.deepEqual(movimenti(A, proposta, ANNA, 'bruno'), {
+    righe: [{ socio: 'bruno', nome: 'Bruno Bianchi', azione: 'rifiuta-cambio', giorno: A, altro: 'Anna Rossi', scambio: B }],
+    notifiche: [{ a: 'anna', titolo: 'Cambio turno rifiutato', testo: 'Bruno Bianchi non fa cambio: il turno di sabato 10 ottobre resta tuo.' }],
+  });
+  assert.equal(movimenti(A, proposta, ANNA, 'anna').righe[0].azione, 'ritira-cambio');
+  assert.deepEqual(movimenti(A, proposta, ANNA, 'anna').notifiche, []);
+  // Accettato: i due turni insieme, un solo avviso (a chi l'aveva proposto).
+  const suA = movimenti(A, proposta, { ...BRUNO, scambio: B }, 'bruno');
+  assert.deepEqual(suA.righe.map((r) => [r.socio, r.azione, r.altro]), [['bruno', 'cambio-prende', 'Anna Rossi'], ['anna', 'cambio-da', 'Bruno Bianchi']]);
+  assert.deepEqual(suA.notifiche, [{ a: 'anna', titolo: 'Cambio turno accettato',
+    testo: 'Bruno Bianchi ha accettato il cambio: ora il tuo turno è martedì 13 ottobre, non più sabato 10 ottobre.' }]);
+  const suB = movimenti(B, BRUNO, { ...ANNA, scambio: A }, 'bruno');
+  assert.deepEqual(suB.righe.map((r) => [r.socio, r.azione]), [['anna', 'cambio-prende'], ['bruno', 'cambio-da']]);
+  assert.deepEqual(suB.notifiche, []);
+  assert.equal(fraseStorico(suA.righe[0]), 'ha preso con un cambio il turno di sabato 10 ottobre da Anna Rossi');
+  assert.equal(fraseStorico(movimenti(A, ANNA, proposta, 'anna').righe[0]),
+    'ha proposto a Bruno Bianchi di fare cambio: il turno di sabato 10 ottobre con il suo di martedì 13 ottobre');
+  // Valida finché i due giorni non sono passati e l'altro turno è ancora suo.
+  assert.equal(cambioAperto(A, proposta, { [B]: BRUNO }, '2026-10-01'), true);
+  assert.equal(cambioAperto(A, proposta, { [B]: ANNA }, '2026-10-01'), false);
+  assert.equal(cambioAperto(A, proposta, {}, '2026-10-01'), false);
+  assert.equal(cambioAperto(A, proposta, { [B]: BRUNO }, '2026-10-11'), false);
+  assert.equal(cambioAperto(A, ANNA, { [B]: BRUNO }, '2026-10-01'), false);
 });

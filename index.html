@@ -43,6 +43,7 @@
     --rosso-testo: #d42a20;
     --arancio: #c25e00; --arancio-tenue: #ffe6cc; --arancio-testo: #8a4300;
     --verde: #1d7a35; --occupato: #d5dae2;
+    --viola: #6b3fa0; --viola-tenue: #efe6fa; --viola-testo: #55298a;
     --chiave: #f7d31a; /* il giallo della striscia della pace, per i cartellini delle chiavi */
     --titoli: 'Baloo 2', system-ui, sans-serif;
   }
@@ -54,6 +55,7 @@
       --blu: #8db3ff; --giallo-tenue: #3a321a;
       --arancio: #f28c1e; --arancio-tenue: #4a2e12; --arancio-testo: #ffb366;
       --verde: #6fd389; --occupato: #48403f;
+      --viola: #b48cf0; --viola-tenue: #34283f; --viola-testo: #d4b8ff;
     }
   }
   :root[data-theme="dark"] {
@@ -62,6 +64,7 @@
     --blu: #8db3ff; --giallo-tenue: #3a321a;
     --arancio: #f28c1e; --arancio-tenue: #4a2e12; --arancio-testo: #ffb366;
     --verde: #6fd389; --occupato: #48403f;
+    --viola: #b48cf0; --viola-tenue: #34283f; --viola-testo: #d4b8ff;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--sfondo); color: var(--inchiostro);
@@ -168,6 +171,11 @@
   .giorno.cerca { border: 2px solid var(--arancio); background: var(--arancio-tenue); color: var(--inchiostro); font-weight: 400; }
   .giorno.cerca .nome { font-size: .6rem; font-weight: 700; color: var(--arancio-testo); }
   .giorno.cerca.oggi .num { background: var(--inchiostro); color: var(--su-inchiostro); }
+  /* Cambio proposto, in attesa di risposta: viola e con la scritta */
+  .giorno.cambio, .legenda .l-cambio { border: 2px solid var(--viola); background: var(--viola-tenue); color: var(--inchiostro); font-weight: 400; }
+  .giorno.cambio .nome { font-size: .6rem; font-weight: 700; color: var(--viola-testo); }
+  .giorno.cambio.oggi .num { background: var(--inchiostro); color: var(--su-inchiostro); }
+  .avviso.cambio { border-left-color: var(--viola); }
   /* Giorno di chiusura: la serranda abbassata */
   .giorno.chiuso, .legenda .l-chiuso { border: 2px solid var(--linea); color: var(--grigio);
     background: repeating-linear-gradient(var(--superficie) 0 5px, var(--linea) 5px 7px); }
@@ -400,6 +408,13 @@
       <button id="chiavi-rifiuta" class="secondario">No, non le ho ricevute</button>
     </div>
   </div>
+  <div id="cambio-arrivo" class="avviso cambio" role="alert" hidden>
+    <p id="cambio-arrivo-testo"></p>
+    <div class="azioni">
+      <button id="cambio-accetta" class="grande">Accetto il cambio</button>
+      <button id="cambio-rifiuta" class="secondario">No, rifiuto</button>
+    </div>
+  </div>
   <div id="incasso-arrivo" class="avviso incasso" role="alert" hidden>
     <p id="incasso-arrivo-testo"></p>
     <button id="incasso-arrivo-tasto" class="grande">Inserisci l'incasso</button>
@@ -433,6 +448,7 @@
       <li><i class="l-altro"></i>Già preso</li>
       <li><i class="l-libero"></i>Libero: tocca per segnarti</li>
       <li><i class="l-cerca"></i>Cercasi sostituto: tocca per prenderlo</li>
+      <li><i class="l-cambio"></i>Cambio proposto: aspetta la risposta dell'altro socio</li>
       <li id="legenda-chiuso" hidden><i class="l-chiuso"></i>Chiuso: se vuoi aprire tu, toccalo</li>
       <li id="legenda-deserto" hidden><i class="l-deserto"></i>Chiuso per assenza di turnista: nessuno si era segnato</li>
       <li id="legenda-extra" hidden><i class="l-extra"></i>Extra: aperto nel giorno di chiusura</li>
@@ -457,7 +473,8 @@
     <select id="periodo-scelta" aria-label="Periodo della classifica"></select>
     <p id="mia-posizione"></p>
     <ol id="elenco-classifica"></ol>
-    <p class="nota">Contano solo i turni già fatti: quelli in programma entrano il giorno dopo.</p>
+    <p class="nota">Contano solo i turni già fatti: quelli in programma entrano il giorno dopo. Tra parentesi quanti sono
+      extra, cioè fatti nel giorno di chiusura.</p>
   </section>
 
   <section id="vista-chiavi" hidden>
@@ -555,6 +572,7 @@
     <div class="azioni">
       <button id="d-ok" class="grande" value="ok"></button>
       <button id="d-cassa" class="secondario" value="cassa" hidden></button>
+      <button id="d-cambio" class="secondario" value="cambio" hidden></button>
       <button id="d-altro" class="secondario pericolo" value="altro" hidden></button>
       <button id="d-annulla" class="secondario" value="annulla"></button>
     </div>
@@ -600,9 +618,9 @@
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInAnonymously, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
-import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp }
+import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, increment, serverTimestamp, writeBatch }
   from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti, meseDaSegnare } from './calendario.js?v=10'; // ?v=: vedi admin.js
+import { iso, griglia, giornoLeggibile, classifica, chiuso, testoChiusura, fascia, coperti, meseDaSegnare, cambioAperto } from './calendario.js?v=11'; // ?v=: vedi admin.js
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { normalizzaNome, maiuscole, nomeValido, pinValido } from './profilo.js?v=3'; // ?v=: vedi admin.js
 
@@ -654,19 +672,22 @@ let soci = {};       // elenco/soci: id → nome, lo tiene aggiornato functions/
 const breve = (nome) => { const [n, c] = nome.split(' '); return c ? `${n}\n${c.length > 3 ? c.slice(0, 3) + '.' : c}` : n; }; // "Mario Ros." nelle caselle
 
 // Al posto di alert/confirm/prompt: finestra con pulsanti grandi, uno sotto l'altro.
-// Risolve true (ok), 'altro' (terzo pulsante), 'cassa' (pulsante dell'incasso), false; o il testo se c'è input; o l'id scelto se c'è socio (id di partenza).
-function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = null, input = false, socio = null, cassa = null } = {}) {
+// Risolve true (ok), 'altro' (terzo pulsante), 'cassa' (pulsante dell'incasso), 'cambio', false; o il testo se c'è input;
+// o l'id scelto se c'è socio (id di partenza); o il valore scelto se ci sono scelte ([valore, testo]).
+function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = null, input = false, socio = null, cassa = null, cambio = null, scelte = null } = {}) {
   const d = $('dialogo');
   $('d-titolo').textContent = titolo;
   $('d-titolo').hidden = !titolo;
   $('d-testo').textContent = testo;
   $('d-input').hidden = !input;
   $('d-input').value = '';
-  $('d-socio').hidden = !socio;
-  if (socio) {
-    $('d-socio').replaceChildren(...Object.entries({ ...soci, [io.id]: io.nome }).sort(([, a], [, b]) => a.localeCompare(b, 'it'))
-      .map(([id, nome]) => { const o = el('option', '', nome); o.value = id; return o; }));
-    $('d-socio').value = socio;
+  const tendina = socio || scelte;
+  $('d-socio').hidden = !tendina;
+  if (tendina) {
+    const voci = scelte ?? Object.entries({ ...soci, [io.id]: io.nome }).sort(([, a], [, b]) => a.localeCompare(b, 'it'));
+    $('d-socio').replaceChildren(...voci.map(([id, nome]) => { const o = el('option', '', nome); o.value = id; return o; }));
+    $('d-socio').value = socio ?? voci[0][0];
+    $('d-socio').setAttribute('aria-label', scelte ? 'Turno' : 'Socio');
   }
   $('d-ok').textContent = ok;
   $('d-altro').textContent = altro ?? '';
@@ -675,13 +696,15 @@ function chiedi(testo, { titolo = '', ok = 'Ho capito', altro = null, annulla = 
   $('d-annulla').hidden = !annulla;
   $('d-cassa').textContent = cassa ?? '';
   $('d-cassa').hidden = !cassa;
+  $('d-cambio').textContent = cambio ?? '';
+  $('d-cambio').hidden = !cambio;
   d.returnValue = '';
   d.showModal();
   return new Promise((fine) => {
     d.onclose = () => {
-      if (d.returnValue === 'cassa') return fine('cassa');
+      if (d.returnValue === 'cassa' || d.returnValue === 'cambio') return fine(d.returnValue);
       const si = d.returnValue === 'ok';
-      fine(input ? (si ? $('d-input').value.trim() : undefined) : socio ? (si ? $('d-socio').value : undefined)
+      fine(input ? (si ? $('d-input').value.trim() : undefined) : tendina ? (si ? $('d-socio').value : undefined)
         : d.returnValue === 'altro' ? 'altro' : si);
     };
   });
@@ -784,9 +807,12 @@ function disegnaProssimo() {
     return;
   }
   const [primo] = miei;
+  const t = turni[primo];
+  const stato = t.cedo ? 'Stai cercando un sostituto'
+    : cambioAperto(primo, t, turni, oggi()) ? `Hai proposto un cambio a ${t.cambio.nome}` : '';
   p.replaceChildren(el('span', '', 'Il tuo prossimo turno'), el('strong', '', giornoLeggibile(primo)),
-    el('span', 'nota', turni[primo].cedo
-      ? ['Stai cercando un sostituto', miei.length === 2 ? 'hai anche un altro turno in programma' : miei.length > 2 ? `hai anche altri ${miei.length - 1} turni in programma` : ''].filter(Boolean).join(' · ')
+    el('span', 'nota', stato
+      ? [stato, miei.length === 2 ? 'hai anche un altro turno in programma' : miei.length > 2 ? `hai anche altri ${miei.length - 1} turni in programma` : ''].filter(Boolean).join(' · ')
       : miei.length === 2 ? 'e un altro in programma' : miei.length > 2 ? `e altri ${miei.length - 1} in programma` : ''));
   p.onclick = () => { anno = Number(primo.slice(0, 4)); mese = primo.slice(5, 7) - 1; disegna(); };
 }
@@ -811,7 +837,7 @@ function disegnaClassifica() {
     return o;
   }));
   $('periodo-scelta').value = visto;
-  const righe = classifica(turni, oggi(), visto, soci);
+  const righe = classifica(turni, oggi(), visto, soci, orari);
   $('periodo-mese').setAttribute('aria-pressed', String(periodo?.length === 7));
   $('periodo-anno').setAttribute('aria-pressed', String(periodo?.length === 4));
   $('periodo-sempre').setAttribute('aria-pressed', String(periodo === null));
@@ -820,7 +846,7 @@ function disegnaClassifica() {
     const mio = r.id === io.id;
     if (mio) li.classList.add('io');
     const quanti = el('span', 'quanti', String(r.turni));
-    quanti.append(el('small', '', r.turni === 1 ? ' turno' : ' turni'));
+    quanti.append(el('small', '', `${r.turni === 1 ? ' turno' : ' turni'} (${r.extra} extra)`));
     li.append(el('span', 'posto', String(r.posto)), el('span', 'chi', mio ? `${r.nome} (tu)` : r.nome), quanti);
     return li;
   }));
@@ -844,16 +870,18 @@ function disegna() {
     const b = el('button', 'giorno');
     const deserto = rimastoChiuso(data);
     if (deserto) deserti++;
-    const serranda = !t && !deserto && chiuso(data, orari.chiusura); // un turno già segnato resta visibile
+    const serranda = !t && !deserto && chiuso(data, orari); // un turno già segnato resta visibile
     const cerca = t?.cedo && data >= oggi(); // passato il giorno non si prende più
-    const extra = t && chiuso(data, orari.chiusura); // turno in un giorno di chiusura
+    const cambio = cambioAperto(data, t, turni, oggi()); // ha proposto un cambio, aspetta la risposta
+    const extra = t && chiuso(data, orari); // turno in un giorno di chiusura
     const libero = !t && !serranda && !deserto && (data >= oggi() || admin); // l'admin segna anche i giorni passati
     b.append(el('span', 'num', String(Number(data.slice(8)))),
-      el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : extra ? '\nextra' : '') : deserto ? 'nessuno' : serranda ? 'chiuso' : libero ? '+' : ''));
-    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${extra ? ', aperto nel giorno di chiusura' : ''}${cerca ? ', cerca un sostituto' : ''}` : deserto ? 'il circolo è rimasto chiuso per assenza di turnista' : serranda ? 'circolo chiuso' : 'libero'}`);
+      el('span', 'nome', t ? breve(t.nome) + (cerca ? '\ncercasi' : cambio ? '\ncambio' : extra ? '\nextra' : '') : deserto ? 'nessuno' : serranda ? 'chiuso' : libero ? '+' : ''));
+    b.setAttribute('aria-label', `${giornoLeggibile(data)}: ${t ? `turno di ${t.nome}${extra ? ', aperto nel giorno di chiusura' : ''}${cerca ? ', cerca un sostituto' : ''}${cambio ? `, ha proposto un cambio a ${t.cambio.nome}` : ''}` : deserto ? 'il circolo è rimasto chiuso per assenza di turnista' : serranda ? 'circolo chiuso' : 'libero'}`);
     if (t) b.classList.add(t.id === io.id ? 'mio' : 'altro');
     if (extra) b.classList.add('extra');
     if (cerca) b.classList.add('cerca');
+    if (cambio) b.classList.add('cambio');
     if (serranda) b.classList.add('chiuso');
     if (deserto) b.classList.add('deserto');
     if (libero) b.classList.add('libero');
@@ -865,11 +893,12 @@ function disegna() {
   $('legenda-chiuso').hidden = orari.chiusura == null;
   $('legenda-extra').hidden = orari.chiusura == null;
   $('legenda-deserto').hidden = !deserti;
-  const [fatti, aperti] = coperti(anno, mese, turni, orari.chiusura);
+  const [fatti, aperti] = coperti(anno, mese, turni, orari);
   $('coperti').replaceChildren(`Turni coperti in ${new Date(anno, mese).toLocaleDateString('it-IT', { month: 'long' })}: `,
     el('strong', '', `${fatti}/${aperti}`));
   disegnaMeseSoci();
   disegnaProssimo();
+  disegnaCambio();
   disegnaClassifica();
   pannello?.disegnaSoci();
   portachiavi?.disegna();
@@ -982,7 +1011,7 @@ async function chiediGiorno(data, testo, opzioni) {
 // primo turno mai segnato: prima l'app non c'era.
 function rimastoChiuso(data) {
   const primo = Object.keys(turni).sort()[0];
-  return !turni[data] && data < oggi() && primo < data && !chiuso(data, orari.chiusura);
+  return !turni[data] && data < oggi() && primo < data && !chiuso(data, orari);
 }
 
 async function tocca(data) {
@@ -1007,20 +1036,29 @@ async function tocca(data) {
       }
       const ore = fascia(orari);
       // Giorno di chiusura: chi vuole apre lo stesso, con un turno come gli altri.
-      const testo = chiuso(data, orari.chiusura)
+      const testo = chiuso(data, orari)
         ? `Il circolo è ${testoChiusura(orari.chiusura)}. Se vuoi aprirlo tu, segnati: il turno lo vedono tutti, come negli altri giorni.`
         : ore ? `Vuoi segnarti per il turno ${ore}?` : 'Vuoi segnarti per questo turno?';
-      if (await chiediGiorno(data, testo, { titolo: quando, ok: chiuso(data, orari.chiusura) ? 'Apro io e mi segno' : 'Segnami', annulla: 'Annulla' })) {
+      if (await chiediGiorno(data, testo, { titolo: quando, ok: chiuso(data, orari) ? 'Apro io e mi segno' : 'Segnami', annulla: 'Annulla' })) {
         await setDoc(doc(db, 'turni', data), { id: io.id, nome: io.nome });
         avvisoBreve(`Turno segnato: ${quando}`);
+      }
+    } else if (t.id === io.id && !passato && cambioAperto(data, t, turni, oggi())) {
+      if (await chiediGiorno(data, `Hai proposto a ${t.cambio.nome} di fare cambio con il suo turno di ${giornoLeggibile(t.cambio.giorno)}. Aspetti che accetti o rifiuti: fino ad allora il turno resta tuo.`, {
+        titolo: quando, ok: 'Annulla la proposta', annulla: 'Chiudi',
+      })) {
+        await setDoc(doc(db, 'turni', data), { id: io.id, nome: t.nome });
+        avvisoBreve('Proposta di cambio annullata');
       }
     } else if (t.id === io.id && !passato) {
       const scelta = await chiediGiorno(data, t.cedo
         ? 'Stai cercando un sostituto: il turno resta tuo finché qualcuno non lo prende. Se ora puoi farlo tu, tocca «Lo faccio io» e nessuno potrà più prenderlo.'
         : 'È il tuo turno. Se non puoi farlo, cerca un sostituto: il turno resta tuo finché qualcuno non lo prende. Se lo togli, il giorno torna libero.', {
-        titolo: quando, ok: t.cedo ? 'Lo faccio io' : 'Cerco un sostituto', altro: 'Togli il turno', annulla: 'Annulla',
+        titolo: quando, ok: t.cedo ? 'Lo faccio io' : 'Cerco un sostituto', cambio: 'Chiedi un cambio', altro: 'Togli il turno', annulla: 'Annulla',
       });
-      if (scelta === 'altro') {
+      if (scelta === 'cambio') {
+        await proponiCambio(data, t);
+      } else if (scelta === 'altro') {
         await deleteDoc(doc(db, 'turni', data));
         avvisoBreve(`Turno tolto: ${quando}`);
       } else if (scelta && t.cedo) {
@@ -1059,6 +1097,50 @@ async function tocca(data) {
   }
 }
 
+// Cambio turno: si propone su un turno futuro di un altro socio (non di chiusura); l'altro accetta o rifiuta dal riquadro
+// in cima. Accettare scrive i due turni insieme (firestore.rules, cambioAccettato); gli avvisi li manda functions/index.js.
+async function proponiCambio(data, t) {
+  const scelte = Object.keys(turni).sort()
+    .filter((d) => d >= oggi() && turni[d].id !== io.id && !chiuso(d, orari))
+    .map((d) => [d, `${giornoLeggibile(d)} — ${turni[d].nome}`]);
+  if (!scelte.length) {
+    return chiedi('Per ora non ci sono turni di altri soci con cui fare cambio (nei prossimi giorni, esclusi quelli di chiusura).', { titolo: 'Nessun turno da cambiare' });
+  }
+  const g = await chiedi(`Scegli il turno che vuoi fare al posto di quello di ${giornoLeggibile(data)}. L'altro socio deve accettare: fino ad allora i due turni restano come sono.`, {
+    titolo: 'Chiedi un cambio', ok: 'Proponi il cambio', annulla: 'Annulla', scelte,
+  });
+  if (!g) return;
+  const altro = turni[g];
+  await setDoc(doc(db, 'turni', data), { id: io.id, nome: t.nome, cambio: { giorno: g, con: altro.id, nome: altro.nome } });
+  avvisoBreve(`Proposta inviata: aspetti la risposta di ${altro.nome}`);
+}
+
+// In cima, per chi riceve una proposta di cambio ancora valida: la prima, in ordine di giorno.
+function disegnaCambio() {
+  const [a, t] = Object.entries(turni).sort().find(([d, x]) => x.cambio?.con === io.id && cambioAperto(d, x, turni, oggi())) ?? [];
+  $('cambio-arrivo').hidden = !a;
+  if (!a) return;
+  const b = t.cambio.giorno;
+  $('cambio-arrivo-testo').replaceChildren(el('strong', '', t.nome),
+    ` ti propone un cambio turno: tu fai il suo di ${giornoLeggibile(a)} e in cambio ${t.nome} fa il tuo di ${giornoLeggibile(b)}.`);
+  const fatto = async (scrivi, testo) => {
+    try {
+      await scrivi();
+      avvisoBreve(testo);
+    } catch (e) {
+      await chiedi(e.code === 'permission-denied' ? 'Il cambio non è più possibile: guarda il calendario.'
+        : 'Controlla la connessione e riprova.', { titolo: 'Operazione non riuscita' });
+    }
+  };
+  $('cambio-accetta').onclick = () => fatto(() => {
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'turni', a), { id: io.id, nome: io.nome, scambio: b });
+    batch.set(doc(db, 'turni', b), { id: t.id, nome: t.nome, scambio: a });
+    return batch.commit();
+  }, `Fatto: ora il tuo turno è ${giornoLeggibile(a)}`);
+  $('cambio-rifiuta').onclick = () => fatto(() => setDoc(doc(db, 'turni', a), { id: t.id, nome: t.nome }), 'Cambio rifiutato');
+}
+
 // Contatore accessi (lo vede solo l'admin): all'apertura e al ritorno dopo almeno 30 minuti fuori dall'app.
 // Su iPhone l'app resta in memoria: senza il ritorno in primo piano si conterebbe troppo poco. Errori ignorati.
 const contaAccesso = () =>
@@ -1073,7 +1155,7 @@ function contaAlRitorno() {
 // A ogni apertura (come gli accessi): se manca un turno nel mese in corso o, nell'ultima settimana, nel prossimo,
 // lo ricorda; con OK il calendario va su quel mese.
 async function ricordaMese() {
-  const m = meseDaSegnare(oggi(), turni, io.id, orari.chiusura);
+  const m = meseDaSegnare(oggi(), turni, io.id, orari);
   if (!m || $('dialogo').open) return;
   await chiedi(`Ricordati di segnare il tuo turno per ${nomeMese(m)}: tocca un giorno libero nel calendario.`,
     { titolo: `Turni di ${nomeMese(m)}`, ok: 'OK' });
@@ -1111,13 +1193,13 @@ function mostraAgenda() {
     if (primaVolta) { primaVolta = false; ricordaMese(); }
   }, () => { $('stato').textContent = 'Connessione assente. Ricarica la pagina.'; $('stato').hidden = false; });
   onSnapshot(doc(db, 'elenco', 'soci'), (snap) => { soci = snap.data()?.soci ?? {}; disegna(); }, () => {}); // senza: niente elenco
-  import('./chiavi.js?v=4') // ?v=: vedi admin.js
+  import('./chiavi.js?v=5') // ?v=: vedi admin.js
     .then(({ avviaChiavi }) => { portachiavi = avviaChiavi({ db, io, admin, soci: () => soci, $, el, chiedi, avvisoBreve, mostraVista }); })
     .catch(() => chiedi('Scheda Chiavi non caricata. Ricarica la pagina.', { titolo: 'Errore' }));
   ascoltaIncassi();
   if (admin) {
-    import('./admin.js?v=10') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
-      .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, $, el, chiedi, avvisoBreve, turniN, mostraVista }); })
+    import('./admin.js?v=11') // ?v=: vedi admin.js, stessa ragione (cache di GitHub Pages)
+      .then(({ avviaAdmin }) => { pannello = avviaAdmin({ db, io, turni: () => turni, orari: () => orari, $, el, chiedi, avvisoBreve, turniN, mostraVista }); })
       .catch(() => chiedi('Pannello admin non caricato. Ricarica la pagina.', { titolo: 'Errore' }));
   }
   navigator.serviceWorker?.register('sw.js');
@@ -1146,7 +1228,7 @@ function ascoltaIncassi() {
   onSnapshot(doc(db, 'impostazioni', 'incassi'), (snap) => {
     impIncassi = snap.data() ?? {};
     if (!impIncassi.attivi && !cassaInArrivo) return;
-    cassaInArrivo ??= import('./incassi.js?v=2') // ?v=: vedi admin.js
+    cassaInArrivo ??= import('./incassi.js?v=3') // ?v=: vedi admin.js
       .then(({ avviaIncassi }) => (cassa = avviaIncassi({ db, funzioni, io, admin, turni: () => turni, orari: () => orari,
         impostazioni: () => impIncassi, $, el, chiedi, avvisoBreve, mostraVista })))
       .catch(() => { chiedi('Registro degli incassi non caricato. Ricarica la pagina.', { titolo: 'Errore' }); return null; });
