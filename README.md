@@ -45,10 +45,11 @@ ancora giorni liberi, un riquadro te lo ricorda; con OK il calendario va su quel
   Chiunque apre il pomeriggio e cambia il fondo nel cassetto lo aggiorna da **Incassi** → "Aggiorna il fondo cassa".
   Ogni modifica la vedono tutti, con chi, quando e perché.
 - **Promemoria sul telefono** (una settimana prima e il giorno prima del turno; a tutti, una settimana e un giorno
-  prima del mese nuovo, per ricordare di segnarsi): in fondo al calendario
-  tocca "Attiva promemoria" e accetta le notifiche. Su **Android** basta Chrome. Su **iPhone** (iOS 16.4
-  o successivo) prima tocca Condividi → "Aggiungi alla schermata Home", apri Turni dall'icona e rientra
-  con nome, cognome e PIN: da Safari normale Apple non manda notifiche. Chi aveva già l'icona sulla
+  prima del mese nuovo, per ricordare di segnarsi): finché non sono attivi c'è una striscia gialla in cima
+  al calendario; tocca "Attiva" e accetta le notifiche (una volta attivi, il riquadro passa in fondo). Su
+  **Android** basta Chrome; dopo, la striscia propone "Installa" per avere Turni tra le app. Su **iPhone**
+  (iOS 16.4 o successivo) la striscia spiega in tre passi: Condividi → "Aggiungi alla schermata Home", apri
+  Turni dall'icona e rientra con nome, cognome e PIN: da Safari normale Apple non manda notifiche. Chi aveva già l'icona sulla
   Home da prima la toglie e la rimette. I promemoria valgono per il telefono dove li attivi.
 
 ## Per l'amministratore

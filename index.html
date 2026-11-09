@@ -279,6 +279,18 @@
   .promemoria h2 { margin: 0 0 4px; font: 800 1.25rem/1.2 var(--titoli); }
   .promemoria p { margin: 0 0 12px; }
   .promemoria.attivi { border-color: var(--rosso); }
+  /* Non attivi: striscia gialla compatta in cima al calendario, testo e tasto sulla stessa riga */
+  .promemoria.in-cima { display: flex; align-items: center; gap: 12px; margin: 0 0 16px; padding: 10px 12px;
+                        border-color: #f7d31a; background: var(--giallo-tenue); }
+  .promemoria.in-cima h2 { display: none; }
+  .promemoria.in-cima p { flex: 1; margin: 0; }
+  .promemoria.in-cima button { width: auto; flex: none; }
+  /* iPhone non installato: i tre passi, sotto il testo */
+  .promemoria.in-cima { flex-wrap: wrap; }
+  #p-guida { flex-basis: 100%; margin: 0; padding-left: 1.4em; }
+  #p-guida li { margin-top: 6px; }
+  #p-guida svg { width: 1.2em; height: 1.2em; vertical-align: -3px; fill: none; stroke: var(--blu); stroke-width: 2;
+                 stroke-linecap: round; stroke-linejoin: round; }
 
   /* Orari (admin) */
   .titolo-vista { margin: 0 0 4px; font: 800 1.4rem/1.2 var(--titoli); }
@@ -432,6 +444,10 @@
   </nav>
 
   <section id="vista-calendario">
+    <section id="installa" class="promemoria in-cima" hidden>
+      <p>Metti Turni sulla schermata Home, come le altre app.</p>
+      <button id="installa-tasto" class="secondario">Installa</button>
+    </section>
     <button id="prossimo" class="prossimo"></button>
     <div class="mese">
       <button id="prima" aria-label="Mese precedente">‹</button>
@@ -460,6 +476,13 @@
     <section id="promemoria" class="promemoria" aria-live="polite">
       <h2>Promemoria sul telefono</h2>
       <p id="p-testo">Un avviso sul telefono una settimana prima e il giorno prima di ogni tuo turno.</p>
+      <ol id="p-guida" hidden>
+        <li>Tocca Condividi <svg viewBox="0 0 24 24" aria-label="(il quadrato con la freccia)"><path d="M12 3v12M8 7l4-4 4 4"/>
+          <path d="M8 10H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2"/></svg>
+          (se non lo vedi, tocca prima i tre puntini ···)</li>
+        <li>Scorri e scegli <strong>«Aggiungi alla schermata Home»</strong></li>
+        <li>Apri Turni dalla nuova icona e rientra con nome, cognome e PIN</li>
+      </ol>
       <button id="p-tasto" class="secondario" hidden></button>
     </section>
   </section>
@@ -931,27 +954,63 @@ function cambiaMese(delta) {
 
 // Promemoria: il telefono si iscrive alle notifiche; le manda ogni mattina functions/index.js.
 const iPhone = /iPhone|iPad/.test(navigator.userAgent) || (/Mac/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+const installata = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+// Installazione su Android: Chrome ci passa il suo invito e lo mostriamo noi col tasto «Installa»,
+// solo dopo che i promemoria sono attivi (una cosa alla volta). Su iPhone non esiste: c'è la guida (#p-guida).
+let invitoInstalla = null;
+addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  invitoInstalla = e;
+  if (io) disegnaPromemoria().catch(console.error);
+});
+addEventListener('appinstalled', () => {
+  invitoInstalla = null;
+  $('installa').hidden = true;
+  avvisoBreve('Fatto: trovi Turni tra le app del telefono');
+});
+$('installa-tasto').onclick = async () => {
+  if (!invitoInstalla) return;
+  invitoInstalla.prompt();
+  await invitoInstalla.userChoice;
+  invitoInstalla = null; // si usa una volta sola; se dice di no, Chrome lo ripropone a una prossima apertura
+  $('installa').hidden = true;
+};
 
 async function disegnaPromemoria() {
   const [box, t, b] = [$('promemoria'), $('p-testo'), $('p-tasto')];
+  // Finché non sono attivi stanno in cima al calendario, ben visibili; attivi tornano in fondo.
+  const inCima = (si) => { box.classList.toggle('in-cima', si); $('vista-calendario')[si ? 'prepend' : 'append'](box); };
   box.classList.remove('attivi');
   b.hidden = true;
+  $('p-guida').hidden = true;
+  $('installa').hidden = true;
+  if (iPhone && !installata) { // su iPhone le notifiche arrivano solo all'app sulla schermata Home
+    inCima(true);
+    t.textContent = 'Per ricevere gli avvisi dei tuoi turni, metti Turni sulla schermata Home:';
+    $('p-guida').hidden = false;
+    return;
+  }
   if (!('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window)) {
+    inCima(true);
     t.textContent = iPhone
-      ? 'Su iPhone: tocca Condividi, poi "Aggiungi alla schermata Home", e apri Turni da lì. La prima volta rientri con nome, cognome e PIN.'
+      ? 'Su questo iPhone i promemoria non funzionano: aggiorna l\'iPhone (serve almeno iOS 16.4) e riapri Turni.'
       : 'Questo browser non manda promemoria: apri la pagina con Chrome.';
     return;
   }
   if (Notification.permission === 'denied') {
+    inCima(true);
     t.textContent = 'Hai bloccato le notifiche di questa pagina: riattivale dalle impostazioni del telefono.';
     return;
   }
   const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
   const attivi = sub && (await getDoc(doc(db, 'promemoria', auth.currentUser.uid))).exists();
   box.classList.toggle('attivi', Boolean(attivi));
+  inCima(!attivi);
+  $('installa').hidden = !(attivi && invitoInstalla);
   t.textContent = attivi ? 'Attivi su questo telefono: ti avvisiamo una settimana prima e il giorno prima di ogni tuo turno.'
-    : 'Un avviso sul telefono una settimana prima e il giorno prima di ogni tuo turno.';
-  b.textContent = attivi ? 'Disattiva promemoria' : 'Attiva promemoria';
+    : 'Vuoi un avviso sul telefono prima dei tuoi turni?';
+  b.textContent = attivi ? 'Disattiva promemoria' : 'Attiva';
   b.onclick = attivi ? disattivaPromemoria : attivaPromemoria;
   b.hidden = false;
 }
@@ -967,6 +1026,7 @@ async function attivaPromemoria() {
     const { endpoint, keys } = sub.toJSON();
     await setDoc(doc(db, 'promemoria', auth.currentUser.uid), { id: io.id, endpoint, p256dh: keys.p256dh, auth: keys.auth });
     reg.showNotification('Promemoria attivi', { body: 'Così ti arriveranno gli avvisi dei tuoi turni.', icon: 'icona.png' });
+    avvisoBreve('Promemoria attivi'); // la striscia scende in fondo: lo diciamo anche qui
   } catch (e) {
     console.error(e);
     await chiedi('Controlla la connessione e riprova.', { titolo: 'Promemoria non attivati' });
